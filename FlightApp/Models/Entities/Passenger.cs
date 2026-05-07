@@ -1,3 +1,5 @@
+using FlightKS.Enums;
+
 namespace FlightKS.Models.Entities;
 
 public class Passenger
@@ -13,6 +15,4 @@ public class Passenger
     public PassengerType Type { get; set; }
     public string? PassportNumber { get; set; }
     public string? Nationality { get; set; }
-
-    public ICollection<PassengerSegment> Segments { get; set; } = [];
 }
