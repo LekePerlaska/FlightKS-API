@@ -1,3 +1,5 @@
+using FlightKS.Enums;
+
 namespace FlightKS.Models.Entities;
 
 public class Payment
