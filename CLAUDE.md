@@ -20,4 +20,4 @@ This is an early-stage **ASP.NET Core 10.0 Web API** project using the minimal h
 - **API docs:** Swagger UI served at `/swagger` in development via Swashbuckle (6.6.2)
 - **Solution file:** `FlightKS.sln` at the repo root; the single project is under `FlightApp/`
 
-The project currently contains only a scaffolded `/weatherforecast` endpoint as a placeholder — real domain logic is not yet implemented.
+CRUD endpoints for Flights and Users are exposed under `/api/flights` and `/api/users` via minimal-API endpoint groups (`FlightApp/Endpoints/`). Services live in `FlightApp/Services/` and are wired in `Program.cs`.
