@@ -1,7 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Flights;
-using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,56 +8,37 @@ namespace FlightKS.Services;
 
 public class FlightService(AppDbContext db) : IFlightService
 {
-    public async Task<IEnumerable<FlightResponseDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<FlightResponseDto>> SearchAsync(FlightSearchQuery query, CancellationToken cancellationToken = default)
     {
+        var departStart = query.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var departEnd = query.Date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
         var flights = await db.Flights
             .AsNoTracking()
+            .Include(f => f.OriginAirport)
+            .Include(f => f.DestinationAirport)
+            .Include(f => f.Prices)
+            .Where(f =>
+                f.Origin == query.Origin &&
+                f.Destination == query.Destination &&
+                f.DepartureTime >= departStart &&
+                f.DepartureTime <= departEnd &&
+                f.Prices.Any(p => p.Cabin == query.Cabin && p.TotalSeats >= query.Adults))
+            .OrderBy(f => f.DepartureTime)
             .ToListAsync(cancellationToken);
 
         return flights.Select(FlightMapping.ToResponse);
     }
 
-    public async Task<FlightResponseDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<FlightResponseDto?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        var flight = await FindByIdAsync(id, tracked: false, cancellationToken);
+        var flight = await db.Flights
+            .AsNoTracking()
+            .Include(f => f.OriginAirport)
+            .Include(f => f.DestinationAirport)
+            .Include(f => f.Prices)
+            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+
         return flight?.ToResponse();
-    }
-
-    public async Task<FlightResponseDto> CreateAsync(FlightCreateDto dto, CancellationToken cancellationToken = default)
-    {
-        var flight = dto.ToEntity();
-
-        db.Flights.Add(flight);
-        await db.SaveChangesAsync(cancellationToken);
-
-        return flight.ToResponse();
-    }
-
-    public async Task<FlightResponseDto?> UpdateAsync(Guid id, FlightUpdateDto dto, CancellationToken cancellationToken = default)
-    {
-        var flight = await FindByIdAsync(id, tracked: true, cancellationToken);
-        if (flight is null) return null;
-
-        dto.ApplyTo(flight);
-        await db.SaveChangesAsync(cancellationToken);
-
-        return flight.ToResponse();
-    }
-
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var flight = await FindByIdAsync(id, tracked: true, cancellationToken);
-        if (flight is null) return false;
-
-        db.Flights.Remove(flight);
-        await db.SaveChangesAsync(cancellationToken);
-
-        return true;
-    }
-
-    private Task<Flight?> FindByIdAsync(Guid id, bool tracked, CancellationToken cancellationToken)
-    {
-        var query = tracked ? db.Flights : db.Flights.AsNoTracking();
-        return query.FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
     }
 }
