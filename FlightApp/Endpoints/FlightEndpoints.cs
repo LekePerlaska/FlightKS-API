@@ -1,3 +1,5 @@
+using FlightKS.Enums;
+using FlightKS.Helpers;
 using FlightKS.Models.Dtos.Flights;
 using FlightKS.Services.Interfaces;
 
@@ -5,48 +7,46 @@ namespace FlightKS.Endpoints;
 
 public static class FlightEndpoints
 {
-    private const string RoutePrefix = "/api/flights";
+    private const string RoutePrefix = "/flights";
 
     public static IEndpointRouteBuilder MapFlightEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup(RoutePrefix).WithTags("Flights");
 
-        group.MapGet("/", GetAll).WithName("GetFlights");
-        group.MapGet("/{id:guid}", GetById).WithName("GetFlightById");
-        group.MapPost("/", Create).WithName("CreateFlight");
-        group.MapPut("/{id:guid}", Update).WithName("UpdateFlight");
-        group.MapDelete("/{id:guid}", Delete).WithName("DeleteFlight");
+        group.MapGet("/", Search).WithName("SearchFlights");
+        group.MapGet("/{id}", GetById).WithName("GetFlightById");
 
         return app;
     }
 
-    private static async Task<IResult> GetAll(IFlightService flights, CancellationToken cancellationToken)
+    private static async Task<IResult> Search(
+        string origin,
+        string destination,
+        DateOnly date,
+        IFlightService flights,
+        CancellationToken cancellationToken,
+        DateOnly? returnDate = null,
+        string? cabin = null,
+        short adults = 1,
+        string? tripType = null)
     {
-        var result = await flights.GetAllAsync(cancellationToken);
+        var query = new FlightSearchQuery
+        {
+            Origin = origin,
+            Destination = destination,
+            Date = date,
+            ReturnDate = returnDate,
+            Cabin = EnumParse.SnakeCase(cabin ?? string.Empty, CabinClass.Economy),
+            Adults = adults,
+            TripType = EnumParse.SnakeCase(tripType ?? string.Empty, TripType.OneWay),
+        };
+        var result = await flights.SearchAsync(query, cancellationToken);
         return TypedResults.Ok(result);
     }
 
-    private static async Task<IResult> GetById(Guid id, IFlightService flights, CancellationToken cancellationToken)
+    private static async Task<IResult> GetById(string id, IFlightService flights, CancellationToken cancellationToken)
     {
         var flight = await flights.GetByIdAsync(id, cancellationToken);
         return flight is null ? TypedResults.NotFound() : TypedResults.Ok(flight);
-    }
-
-    private static async Task<IResult> Create(FlightCreateDto dto, IFlightService flights, CancellationToken cancellationToken)
-    {
-        var created = await flights.CreateAsync(dto, cancellationToken);
-        return TypedResults.Created($"{RoutePrefix}/{created.Id}", created);
-    }
-
-    private static async Task<IResult> Update(Guid id, FlightUpdateDto dto, IFlightService flights, CancellationToken cancellationToken)
-    {
-        var updated = await flights.UpdateAsync(id, dto, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated);
-    }
-
-    private static async Task<IResult> Delete(Guid id, IFlightService flights, CancellationToken cancellationToken)
-    {
-        var deleted = await flights.DeleteAsync(id, cancellationToken);
-        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }

@@ -1,11 +1,13 @@
-using FlightKS.Models.Dtos.Passengers;
+using FlightKS.Enums;
 
 namespace FlightKS.Models.Dtos.Bookings;
 
 public class BookingCreateDto
 {
-    public Guid UserId { get; set; }
-    public required string Currency { get; set; }
-    public required List<BookingFlightCreateDto> Flights { get; set; }
-    public required List<PassengerCreateDto> Passengers { get; set; }
+    public required string FlightId { get; set; }
+    public CabinClass CabinClass { get; set; }
+    public TripType TripType { get; set; } = TripType.OneWay;
+    public DateOnly? ReturnDate { get; set; }
+    public required List<BookingPassengerCreateDto> Passengers { get; set; }
+    public required PaymentSummaryDto PaymentSummary { get; set; }
 }
