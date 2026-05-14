@@ -31,3 +31,21 @@
 **07/05/26** - check loki : Verified Loki is ingesting from the API — labels endpoint shows `app=flightks-api` registered, query_range returned recent structured Serilog entries for the /openapi/v1.json request lifecycle. /ready returns 503 (cold-start gate) but data plane is fully working -
 
 **07/05/26** - check grafana : Grafana healthy (v11.0.0, db ok), Loki datasource provisioned as default and read-only, Grafana→Loki proxy query returned the flightks-api label value. No dashboards provisioned yet (grafana/provisioning/dashboards/ does not exist) -
+
+**14/05/26** - create DTOs for creation, fetching and updating of entities : Added Create/Response/Update DTOs for User, Flight, Booking (with nested BookingFlight + Passenger + Payment), Passenger, and Payment under FlightApp/Models/Dtos/, organized by entity subfolder -
+
+**14/05/26** - for all future builds and runs, user docker : Saved feedback memory to always use `docker compose` (build/up) for this repo and avoid host `dotnet` commands -
+
+**14/05/26** - create interfaces for flights and users, only basic CRUD operations for now : Added `IFlightService` and `IUserService` under FlightApp/Services/Interfaces/ with async GetAll/GetById/Create/Update/Delete using existing DTOs -
+
+**14/05/26** - create implementations for these interfaces, use guidelines defined by "Clean Code" by Robert C. Martin for clean architecture implementatin : Added `FlightService`/`UserService` plus extension-method mappers, an `IPasswordHasher` abstraction with a PBKDF2 implementation, and DI wiring in Program.cs (DbContext via Npgsql); docker compose build api passed clean -
+
+**14/05/26** - do these services require controller, or are some of them simple enough for minimal? : Recommended minimal APIs with MapGroup + endpoint extension methods for both User and Flight; flagged controllers as worthwhile once auth/validation/cross-cutting concerns appear -
+
+**14/05/26** - yes scaffold the endpoint groups : Added `FlightEndpoints` and `UserEndpoints` (minimal API, MapGroup + TypedResults, private handlers) under FlightApp/Endpoints/ and wired `MapFlightEndpoints`/`MapUserEndpoints` in Program.cs; docker compose build api passed -
+
+**14/05/26** - remove the weatherforecast scaffold : Deleted /weatherforecast endpoint + WeatherForecast record + summaries array from Program.cs, updated FlightKS.http to hit /api/flights and /api/users, refreshed CLAUDE.md to describe current endpoints; docker compose build api passed -
+
+**14/05/26** - run it up and test the endpoints : Generated EF InitialCreate migration (via SDK container, chowned back to host), added `db.Database.MigrateAsync()` on startup, rebuilt + restarted api, then ran 14 curl cases covering both groups — every status code matched expectations (200/201/204/404/409) including duplicate-email conflict -
+
+**14/05/26** - yes bring it down : Ran `docker compose down` — all containers (api, postgres, loki, grafana) stopped and removed, flightks-net removed; postgres_data/loki_data/grafana_data volumes preserved -
