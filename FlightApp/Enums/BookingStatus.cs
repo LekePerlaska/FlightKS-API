@@ -1,3 +1,3 @@
 namespace FlightKS.Enums;
 
-public enum BookingStatus { Upcoming, Completed, Cancelled }
+public enum BookingStatus { Pending, Confirmed, Cancelled, Expired, Refunded }
