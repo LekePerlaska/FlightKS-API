@@ -2,9 +2,17 @@ namespace FlightKS.Models.Entities;
 
 public class Airport
 {
-    public required string Code { get; set; }        // CHAR(3) IATA, PK
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public required string Code { get; set; }
     public required string City { get; set; }
     public required string Country { get; set; }
-    public string? Name { get; set; }
-    public string? Timezone { get; set; }
+    public string? TimeZone { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? DeletedAt { get; set; }
+
+    public ICollection<Flight> OriginFlights { get; set; } = [];
+    public ICollection<Flight> DestinationFlights { get; set; } = [];
 }

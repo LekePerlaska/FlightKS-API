@@ -5,25 +5,29 @@ namespace FlightKS.Mappers;
 
 public static class FlightMapping
 {
-    public static FlightResponseDto ToResponse(this Flight entity) => new()
-    {
-        Id = entity.Id,
-        Origin = entity.OriginAirport.ToDto(),
-        Destination = entity.DestinationAirport.ToDto(),
-        Airline = entity.Airline,
-        FlightNumber = entity.FlightNumber,
-        Currency = entity.Currency,
-        DepartureTime = entity.DepartureTime,
-        ArrivalTime = entity.ArrivalTime,
-        DurationMinutes = entity.DurationMinutes,
-        Stops = entity.Stops,
-        BaggageIncluded = entity.BaggageIncluded,
-        Refundable = entity.Refundable,
-        Prices = [.. entity.Prices.Select(p => new FlightPriceDto
-        {
-            Cabin = p.Cabin,
-            Price = p.Price,
-            TotalSeats = p.TotalSeats,
-        })],
-    };
+    public static FlightScheduleSearchResultDto ToSearchResult(this FlightSchedule s) => new(
+        s.Id,
+        s.FlightId,
+        s.Flight.FlightNumber,
+        s.Flight.Airline.ToDto(),
+        s.Flight.OriginAirport.ToDto(),
+        s.Flight.DestinationAirport.ToDto(),
+        s.DepartureTime,
+        s.ArrivalTime,
+        s.Flight.DurationMinutes,
+        s.CurrentPrice,
+        s.AvailableSeats);
+
+    public static FlightAdminListItemDto ToAdminListItem(this Flight f) => new(
+        f.Id,
+        f.FlightNumber,
+        f.AirlineId,
+        f.Airline?.Name ?? string.Empty,
+        f.OriginAirport.ToDto(),
+        f.DestinationAirport.ToDto(),
+        f.BasePrice,
+        f.DurationMinutes,
+        f.IsActive,
+        f.CreatedAt,
+        f.UpdatedAt);
 }

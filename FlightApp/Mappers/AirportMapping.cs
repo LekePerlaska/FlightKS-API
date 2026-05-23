@@ -1,16 +1,13 @@
-using FlightKS.Models.Dtos.Flights;
+using FlightKS.Models.Dtos.Airports;
 using FlightKS.Models.Entities;
 
 namespace FlightKS.Mappers;
 
 public static class AirportMapping
 {
-    public static AirportDto ToDto(this Airport entity) => new()
-    {
-        Code = entity.Code,
-        City = entity.City,
-        Country = entity.Country,
-        Name = entity.Name,
-        Timezone = entity.Timezone,
-    };
+    public static AirportDto ToDto(this Airport a) =>
+        new(a.Id, a.Code, a.Name, a.City, a.Country, a.TimeZone);
+
+    public static AirportAdminListItemDto ToAdminListItem(this Airport a) =>
+        new(a.Id, a.Code, a.Name, a.City, a.Country, a.TimeZone, a.IsActive, a.CreatedAt, a.UpdatedAt);
 }

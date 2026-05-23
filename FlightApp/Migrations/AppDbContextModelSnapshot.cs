@@ -20,25 +20,190 @@ namespace FlightKS.Migrations
                 .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "booking_status", new[] { "upcoming", "completed", "cancelled" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "cabin_class", new[] { "economy", "premium_economy", "business", "first" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "notif_type", new[] { "booking", "alert", "reminder", "promo" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "passenger_type", new[] { "adult", "child", "infant" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "seat_side", new[] { "window", "middle", "aisle" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "trip_type", new[] { "one_way", "round_trip" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "booking_status", new[] { "pending", "confirmed", "cancelled", "expired", "refunded" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "flight_schedule_status", new[] { "scheduled", "delayed", "cancelled", "departed", "arrived" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "flight_seat_status", new[] { "available", "reserved", "booked", "blocked" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_method", new[] { "card", "pay_pal", "bank_transfer", "cash" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_status", new[] { "pending", "completed", "failed", "refunded" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "refund_status", new[] { "pending", "completed", "failed" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "seat_class", new[] { "economy", "premium_economy", "business", "first" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "ticket_status", new[] { "issued", "cancelled", "checked_in", "used", "refunded" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("FlightKS.Models.Entities.Airport", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.AdminLog", b =>
                 {
-                    b.Property<string>("Code")
-                        .HasColumnType("char(3)")
-                        .HasColumnName("code");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("City")
+                    b.Property<string>("Action")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
-                        .HasColumnName("city");
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("admin_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entity_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_logs");
+
+                    b.HasIndex("AdminUserId")
+                        .HasDatabaseName("ix_admin_logs_admin_user_id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_admin_logs_created_at");
+
+                    b.ToTable("admin_logs", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.AiSearchDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.PrimitiveCollection<float[]>("Embedding")
+                        .HasColumnType("real[]")
+                        .HasColumnName("embedding");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ai_search_documents");
+
+                    b.ToTable("ai_search_documents", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Aircraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AirlineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("airline_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("model");
+
+                    b.Property<string>("RegistrationNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("registration_number");
+
+                    b.Property<int>("TotalSeats")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_seats");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_aircrafts");
+
+                    b.HasIndex("AirlineId")
+                        .HasDatabaseName("ix_aircrafts_airline_id");
+
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_aircrafts_registration_number");
+
+                    b.ToTable("aircrafts", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Airline", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code");
 
                     b.Property<string>("Country")
                         .IsRequired()
@@ -46,20 +211,227 @@ namespace FlightKS.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("country");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid?>("LogoFileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("logo_file_id");
+
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_airlines");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_airlines_code");
+
+                    b.HasIndex("LogoFileId")
+                        .HasDatabaseName("ix_airlines_logo_file_id");
+
+                    b.ToTable("airlines", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Airport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("country");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
-                    b.Property<string>("Timezone")
+                    b.Property<string>("TimeZone")
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)")
-                        .HasColumnName("timezone");
+                        .HasColumnName("time_zone");
 
-                    b.HasKey("Code")
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
                         .HasName("pk_airports");
 
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_airports_code");
+
                     b.ToTable("airports", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("action");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entity_name");
+
+                    b.Property<string>("NewValues")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("new_values");
+
+                    b.Property<string>("OldValues")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("old_values");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_logs");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_audit_logs_user_id");
+
+                    b.HasIndex("EntityName", "EntityId")
+                        .HasDatabaseName("ix_audit_logs_entity_name_entity_id");
+
+                    b.ToTable("audit_logs", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.BaggageOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("price");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<decimal>("WeightKg")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("weight_kg");
+
+                    b.HasKey("Id")
+                        .HasName("pk_baggage_options");
+
+                    b.ToTable("baggage_options", (string)null);
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Booking", b =>
@@ -70,59 +442,31 @@ namespace FlightKS.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<decimal>("BaseFare")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("base_fare");
-
-                    b.Property<DateTime>("BookedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("booked_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<int>("Cabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("cabin");
-
-                    b.Property<string>("FlightId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("flight_id");
-
-                    b.Property<short>("PassengerCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((short)1)
-                        .HasColumnName("passenger_count");
-
-                    b.Property<string>("Reference")
+                    b.Property<string>("BookingReference")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasColumnName("reference");
+                        .HasColumnName("booking_reference");
 
-                    b.Property<DateOnly?>("ReturnDate")
-                        .HasColumnType("date")
-                        .HasColumnName("return_date");
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("booking_status")
                         .HasColumnName("status")
-                        .HasDefaultValueSql("'upcoming'::booking_status");
+                        .HasDefaultValueSql("'pending'::booking_status");
 
-                    b.Property<decimal>("TaxesFees")
+                    b.Property<decimal>("TotalAmount")
                         .HasColumnType("numeric(10,2)")
-                        .HasColumnName("taxes_fees");
-
-                    b.Property<decimal>("TotalPrice")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("total_price");
-
-                    b.Property<int>("TripType")
-                        .HasColumnType("trip_type")
-                        .HasColumnName("trip_type");
+                        .HasColumnName("total_amount");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -137,12 +481,9 @@ namespace FlightKS.Migrations
                     b.HasKey("Id")
                         .HasName("pk_bookings");
 
-                    b.HasIndex("FlightId")
-                        .HasDatabaseName("ix_bookings_flight_id");
-
-                    b.HasIndex("Reference")
+                    b.HasIndex("BookingReference")
                         .IsUnique()
-                        .HasDatabaseName("ix_bookings_reference");
+                        .HasDatabaseName("ix_bookings_booking_reference");
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_bookings_user_id");
@@ -150,7 +491,7 @@ namespace FlightKS.Migrations
                     b.ToTable("bookings", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.BookingPassenger", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.BookingBaggage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -158,110 +499,13 @@ namespace FlightKS.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid>("BaggageOptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("baggage_option_id");
+
                     b.Property<Guid>("BookingId")
                         .HasColumnType("uuid")
                         .HasColumnName("booking_id");
-
-                    b.Property<DateOnly>("DateOfBirth")
-                        .HasColumnType("date")
-                        .HasColumnName("date_of_birth");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("email");
-
-                    b.Property<decimal>("Fare")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("fare");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("first_name");
-
-                    b.Property<string>("FrequentFlyerNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("frequent_flyer_number");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("last_name");
-
-                    b.Property<string>("Nationality")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("nationality");
-
-                    b.Property<int>("PassengerType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("passenger_type")
-                        .HasColumnName("passenger_type")
-                        .HasDefaultValueSql("'adult'::passenger_type");
-
-                    b.Property<DateOnly>("PassportExpiry")
-                        .HasColumnType("date")
-                        .HasColumnName("passport_expiry");
-
-                    b.Property<string>("PassportNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("passport_number");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("phone");
-
-                    b.Property<string>("SeatNumber")
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("seat_number");
-
-                    b.Property<string>("SpecialRequests")
-                        .HasColumnType("text")
-                        .HasColumnName("special_requests");
-
-                    b.HasKey("Id")
-                        .HasName("pk_booking_passengers");
-
-                    b.HasIndex("BookingId", "SeatNumber")
-                        .IsUnique()
-                        .HasDatabaseName("ix_booking_passengers_booking_id_seat_number")
-                        .HasFilter("seat_number IS NOT NULL");
-
-                    b.ToTable("booking_passengers", (string)null);
-                });
-
-            modelBuilder.Entity("FlightKS.Models.Entities.Flight", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("id");
-
-                    b.Property<string>("Airline")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("airline");
-
-                    b.Property<DateTime>("ArrivalTime")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("arrival_time");
-
-                    b.Property<bool>("BaggageIncluded")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("baggage_included");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -269,21 +513,117 @@ namespace FlightKS.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<string>("Currency")
-                        .IsRequired()
+                    b.Property<Guid>("PassengerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("passenger_id");
+
+                    b.Property<int>("Quantity")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(3)")
-                        .HasDefaultValue("USD")
-                        .HasColumnName("currency");
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
 
-                    b.Property<DateTime>("DepartureTime")
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("departure_time");
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
-                    b.Property<string>("Destination")
+                    b.HasKey("Id")
+                        .HasName("pk_booking_baggage");
+
+                    b.HasIndex("BaggageOptionId")
+                        .HasDatabaseName("ix_booking_baggage_baggage_option_id");
+
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("ix_booking_baggage_booking_id");
+
+                    b.HasIndex("PassengerId")
+                        .HasDatabaseName("ix_booking_baggage_passenger_id");
+
+                    b.ToTable("booking_baggage", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.FeatureFlag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("Key")
                         .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("destination");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_feature_flags");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_feature_flags_key");
+
+                    b.ToTable("feature_flags", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Flight", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AirlineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("airline_id");
+
+                    b.Property<decimal>("BasePrice")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("base_price");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("DestinationAirportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_airport_id");
 
                     b.Property<int>("DurationMinutes")
                         .HasColumnType("integer")
@@ -295,58 +635,170 @@ namespace FlightKS.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("flight_number");
 
-                    b.Property<string>("Origin")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("origin");
-
-                    b.Property<bool>("Refundable")
+                    b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("refundable");
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
 
-                    b.Property<short>("Stops")
+                    b.Property<Guid>("OriginAirportId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("origin_airport_id");
+
+                    b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((short)0)
-                        .HasColumnName("stops");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
                     b.HasKey("Id")
                         .HasName("pk_flights");
 
-                    b.HasIndex("Destination")
-                        .HasDatabaseName("ix_flights_destination");
+                    b.HasIndex("DestinationAirportId")
+                        .HasDatabaseName("ix_flights_destination_airport_id");
 
-                    b.HasIndex("Origin")
-                        .HasDatabaseName("ix_flights_origin");
+                    b.HasIndex("OriginAirportId")
+                        .HasDatabaseName("ix_flights_origin_airport_id");
+
+                    b.HasIndex("AirlineId", "FlightNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_flights_airline_id_flight_number");
 
                     b.ToTable("flights", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.FlightPrice", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSchedule", b =>
                 {
-                    b.Property<string>("FlightId")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AircraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aircraft_id");
+
+                    b.Property<DateTime>("ArrivalTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("arrival_time");
+
+                    b.Property<int>("AvailableSeats")
+                        .HasColumnType("integer")
+                        .HasColumnName("available_seats");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<decimal>("CurrentPrice")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("current_price");
+
+                    b.Property<string>("DelayReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("delay_reason");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<DateTime>("DepartureTime")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("departure_time");
+
+                    b.Property<Guid>("FlightId")
+                        .HasColumnType("uuid")
                         .HasColumnName("flight_id");
 
-                    b.Property<int>("Cabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("cabin");
+                    b.Property<string>("Gate")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("gate");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("flight_schedule_status")
+                        .HasColumnName("status")
+                        .HasDefaultValueSql("'scheduled'::flight_schedule_status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_flight_schedules");
+
+                    b.HasIndex("AircraftId")
+                        .HasDatabaseName("ix_flight_schedules_aircraft_id");
+
+                    b.HasIndex("DepartureTime")
+                        .HasDatabaseName("ix_flight_schedules_departure_time");
+
+                    b.HasIndex("FlightId")
+                        .HasDatabaseName("ix_flight_schedules_flight_id");
+
+                    b.ToTable("flight_schedules", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSeat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("FlightScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("flight_schedule_id");
 
                     b.Property<decimal>("Price")
                         .HasColumnType("numeric(10,2)")
                         .HasColumnName("price");
 
-                    b.Property<short>("TotalSeats")
-                        .HasColumnType("smallint")
-                        .HasColumnName("total_seats");
+                    b.Property<DateTime?>("ReservedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reserved_until");
 
-                    b.HasKey("FlightId", "Cabin")
-                        .HasName("pk_flight_prices");
+                    b.Property<Guid>("SeatId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("seat_id");
 
-                    b.ToTable("flight_prices", (string)null);
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("flight_seat_status")
+                        .HasColumnName("status")
+                        .HasDefaultValueSql("'available'::flight_seat_status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_flight_seats");
+
+                    b.HasIndex("SeatId")
+                        .HasDatabaseName("ix_flight_seats_seat_id");
+
+                    b.HasIndex("FlightScheduleId", "SeatId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_flight_seats_flight_schedule_id_seat_id");
+
+                    b.ToTable("flight_seats", (string)null);
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Notification", b =>
@@ -363,20 +815,25 @@ namespace FlightKS.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<bool>("IsRead")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_read");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("message");
 
-                    b.Property<bool>("Read")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("read");
-
-                    b.Property<Guid?>("ReferenceId")
+                    b.Property<Guid?>("RelatedEntityId")
                         .HasColumnType("uuid")
-                        .HasColumnName("reference_id");
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<string>("RelatedEntityName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("related_entity_name");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -384,8 +841,10 @@ namespace FlightKS.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("notif_type")
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("type");
 
                     b.Property<Guid>("UserId")
@@ -395,13 +854,13 @@ namespace FlightKS.Migrations
                     b.HasKey("Id")
                         .HasName("pk_notifications");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_notifications_user_id");
+                    b.HasIndex("UserId", "IsRead")
+                        .HasDatabaseName("ix_notifications_user_id_is_read");
 
                     b.ToTable("notifications", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.PriceAlert", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Passenger", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -409,133 +868,9 @@ namespace FlightKS.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<bool>("Active")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("active");
-
-                    b.Property<int>("Cabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("cabin");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<decimal?>("CurrentPrice")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("current_price");
-
-                    b.Property<DateOnly?>("DateFrom")
-                        .HasColumnType("date")
-                        .HasColumnName("date_from");
-
-                    b.Property<DateOnly?>("DateTo")
-                        .HasColumnType("date")
-                        .HasColumnName("date_to");
-
-                    b.Property<string>("Destination")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("destination");
-
-                    b.Property<string>("Origin")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("origin");
-
-                    b.Property<decimal>("TargetPrice")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("target_price");
-
-                    b.Property<Guid>("UserId")
+                    b.Property<Guid>("BookingId")
                         .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_price_alerts");
-
-                    b.HasIndex("Destination")
-                        .HasDatabaseName("ix_price_alerts_destination");
-
-                    b.HasIndex("Origin")
-                        .HasDatabaseName("ix_price_alerts_origin");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_price_alerts_user_id");
-
-                    b.ToTable("price_alerts", (string)null);
-                });
-
-            modelBuilder.Entity("FlightKS.Models.Entities.SavedFlight", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<short>("Adults")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((short)1)
-                        .HasColumnName("adults");
-
-                    b.Property<int>("Cabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("cabin");
-
-                    b.Property<DateOnly>("DepartDate")
-                        .HasColumnType("date")
-                        .HasColumnName("depart_date");
-
-                    b.Property<string>("FlightId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("flight_id");
-
-                    b.Property<decimal>("PriceAtSave")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("price_at_save");
-
-                    b.Property<DateOnly?>("ReturnDate")
-                        .HasColumnType("date")
-                        .HasColumnName("return_date");
-
-                    b.Property<DateTime>("SavedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("saved_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_saved_flights");
-
-                    b.HasIndex("FlightId")
-                        .HasDatabaseName("ix_saved_flights_flight_id");
-
-                    b.HasIndex("UserId", "FlightId", "Cabin", "DepartDate")
-                        .IsUnique()
-                        .HasDatabaseName("ix_saved_flights_user_id_flight_id_cabin_depart_date");
-
-                    b.ToTable("saved_flights", (string)null);
-                });
-
-            modelBuilder.Entity("FlightKS.Models.Entities.SavedTraveler", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
+                        .HasColumnName("booking_id");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -547,23 +882,16 @@ namespace FlightKS.Migrations
                         .HasColumnType("date")
                         .HasColumnName("date_of_birth");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("email");
-
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("first_name");
 
-                    b.Property<bool>("IsDefault")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_default");
+                    b.Property<string>("Gender")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("gender");
 
                     b.Property<string>("LastName")
                         .IsRequired()
@@ -576,35 +904,27 @@ namespace FlightKS.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("nationality");
 
-                    b.Property<DateOnly?>("PassportExpiry")
-                        .HasColumnType("date")
-                        .HasColumnName("passport_expiry");
-
                     b.Property<string>("PassportNumber")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("passport_number");
 
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("phone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
                     b.HasKey("Id")
-                        .HasName("pk_saved_travelers");
+                        .HasName("pk_passengers");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_saved_travelers_user_id");
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("ix_passengers_booking_id");
 
-                    b.ToTable("saved_travelers", (string)null);
+                    b.ToTable("passengers", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.SearchHistory", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Payment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -612,61 +932,350 @@ namespace FlightKS.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<short>("Adults")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((short)1)
-                        .HasColumnName("adults");
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
 
-                    b.Property<int>("Cabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("cabin");
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
 
-                    b.Property<DateOnly>("DepartDate")
-                        .HasColumnType("date")
-                        .HasColumnName("depart_date");
-
-                    b.Property<string>("Destination")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("destination");
-
-                    b.Property<string>("Origin")
-                        .IsRequired()
-                        .HasColumnType("char(3)")
-                        .HasColumnName("origin");
-
-                    b.Property<DateOnly?>("ReturnDate")
-                        .HasColumnType("date")
-                        .HasColumnName("return_date");
-
-                    b.Property<DateTime>("SearchedAt")
+                    b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("searched_at")
+                        .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<int>("TripType")
-                        .HasColumnType("trip_type")
-                        .HasColumnName("trip_type");
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("payment_method")
+                        .HasColumnName("payment_method");
+
+                    b.Property<int>("PaymentStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("payment_status")
+                        .HasColumnName("payment_status")
+                        .HasDefaultValueSql("'pending'::payment_status");
+
+                    b.Property<string>("TransactionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("transaction_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
 
                     b.HasKey("Id")
-                        .HasName("pk_search_history");
+                        .HasName("pk_payments");
 
-                    b.HasIndex("Destination")
-                        .HasDatabaseName("ix_search_history_destination");
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("ix_payments_booking_id");
 
-                    b.HasIndex("Origin")
-                        .HasDatabaseName("ix_search_history_origin");
+                    b.ToTable("payments", (string)null);
+                });
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_search_history_user_id");
+            modelBuilder.Entity("FlightKS.Models.Entities.PaymentRefund", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.ToTable("search_history", (string)null);
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PaymentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("payment_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("RefundStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("refund_status")
+                        .HasColumnName("refund_status")
+                        .HasDefaultValueSql("'pending'::refund_status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_refunds");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("ix_payment_refunds_payment_id");
+
+                    b.ToTable("payment_refunds", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Role", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_roles");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_roles_name");
+
+                    b.ToTable("roles", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Admin"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "FlightManager"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "User"
+                        });
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Seat", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("AircraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aircraft_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("ExtraLegroom")
+                        .HasColumnType("boolean")
+                        .HasColumnName("extra_legroom");
+
+                    b.Property<bool>("IsAisle")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_aisle");
+
+                    b.Property<bool>("IsWindow")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_window");
+
+                    b.Property<int>("SeatClass")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("seat_class")
+                        .HasColumnName("seat_class")
+                        .HasDefaultValueSql("'economy'::seat_class");
+
+                    b.Property<string>("SeatNumber")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("seat_number");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_seats");
+
+                    b.HasIndex("AircraftId", "SeatNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_seats_aircraft_id_seat_number");
+
+                    b.ToTable("seats", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Ticket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("FlightScheduleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("flight_schedule_id");
+
+                    b.Property<Guid?>("FlightSeatId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("flight_seat_id");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PassengerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("passenger_id");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric(10,2)")
+                        .HasColumnName("price");
+
+                    b.Property<string>("TicketNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("ticket_number");
+
+                    b.Property<int>("TicketStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("ticket_status")
+                        .HasColumnName("ticket_status")
+                        .HasDefaultValueSql("'issued'::ticket_status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tickets");
+
+                    b.HasIndex("BookingId")
+                        .HasDatabaseName("ix_tickets_booking_id");
+
+                    b.HasIndex("FlightScheduleId")
+                        .HasDatabaseName("ix_tickets_flight_schedule_id");
+
+                    b.HasIndex("FlightSeatId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tickets_flight_seat_id");
+
+                    b.HasIndex("PassengerId")
+                        .HasDatabaseName("ix_tickets_passenger_id");
+
+                    b.HasIndex("TicketNumber")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tickets_ticket_number");
+
+                    b.ToTable("tickets", (string)null);
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.UploadedFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("original_file_name");
+
+                    b.Property<Guid?>("RelatedEntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<string>("RelatedEntityName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("related_entity_name");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("storage_path");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploaded_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_uploaded_files");
+
+                    b.HasIndex("UploadedByUserId")
+                        .HasDatabaseName("ix_uploaded_files_uploaded_by_user_id");
+
+                    b.ToTable("uploaded_files", (string)null);
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.User", b =>
@@ -687,39 +1296,48 @@ namespace FlightKS.Migrations
                         .HasColumnType("date")
                         .HasColumnName("date_of_birth");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("email");
 
-                    b.Property<string>("FirstName")
+                    b.Property<string>("FullName")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("first_name");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("full_name");
 
-                    b.Property<string>("LastName")
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("KeycloakUserId")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("last_name");
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("keycloak_user_id");
 
                     b.Property<string>("Nationality")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("nationality");
 
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("password_hash");
+                    b.Property<string>("PassportNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("passport_number");
 
-                    b.Property<string>("Phone")
+                    b.Property<string>("PhoneNumber")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
-                        .HasColumnName("phone");
+                        .HasColumnName("phone_number");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -734,111 +1352,80 @@ namespace FlightKS.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_users_email");
 
+                    b.HasIndex("KeycloakUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_keycloak_user_id");
+
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.UserLoyalty", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.UserRole", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<string>("FrequentFlyerNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("frequent_flyer_number");
+                    b.Property<int>("RoleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("role_id");
 
-                    b.Property<string>("FrequentFlyerProgram")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("frequent_flyer_program");
+                    b.HasKey("UserId", "RoleId")
+                        .HasName("pk_user_roles");
 
-                    b.HasKey("UserId")
-                        .HasName("pk_user_loyalty");
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("ix_user_roles_role_id");
 
-                    b.ToTable("user_loyalty", (string)null);
+                    b.ToTable("user_roles", (string)null);
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.UserPassport", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.AdminLog", b =>
                 {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<DateOnly>("ExpiryDate")
-                        .HasColumnType("date")
-                        .HasColumnName("expiry_date");
-
-                    b.Property<string>("Nationality")
+                    b.HasOne("FlightKS.Models.Entities.User", "AdminUser")
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("nationality");
+                        .HasConstraintName("fk_admin_logs_users_admin_user_id");
 
-                    b.Property<string>("PassportNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("passport_number");
-
-                    b.HasKey("UserId")
-                        .HasName("pk_user_passports");
-
-                    b.ToTable("user_passports", (string)null);
+                    b.Navigation("AdminUser");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.UserPreferences", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Aircraft", b =>
                 {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
+                    b.HasOne("FlightKS.Models.Entities.Airline", "Airline")
+                        .WithMany("Aircrafts")
+                        .HasForeignKey("AirlineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_aircrafts_airlines_airline_id");
 
-                    b.Property<bool>("EmailNotifications")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("email_notifications");
+                    b.Navigation("Airline");
+                });
 
-                    b.Property<int?>("PreferredCabin")
-                        .HasColumnType("cabin_class")
-                        .HasColumnName("preferred_cabin");
+            modelBuilder.Entity("FlightKS.Models.Entities.Airline", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.UploadedFile", "LogoFile")
+                        .WithMany()
+                        .HasForeignKey("LogoFileId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_airlines_uploaded_files_logo_file_id");
 
-                    b.Property<string>("PreferredCurrency")
-                        .HasColumnType("char(3)")
-                        .HasColumnName("preferred_currency");
+                    b.Navigation("LogoFile");
+                });
 
-                    b.Property<string>("PreferredMeal")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("preferred_meal");
+            modelBuilder.Entity("FlightKS.Models.Entities.AuditLog", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_audit_logs_users_user_id");
 
-                    b.Property<int?>("PreferredSeat")
-                        .HasColumnType("seat_side")
-                        .HasColumnName("preferred_seat");
-
-                    b.Property<bool>("SmsNotifications")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("sms_notifications");
-
-                    b.HasKey("UserId")
-                        .HasName("pk_user_preferences");
-
-                    b.ToTable("user_preferences", (string)null);
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Booking", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Flight", "Flight")
-                        .WithMany()
-                        .HasForeignKey("FlightId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_bookings_flights_flight_id");
-
                     b.HasOne("FlightKS.Models.Entities.User", "User")
                         .WithMany("Bookings")
                         .HasForeignKey("UserId")
@@ -846,54 +1433,109 @@ namespace FlightKS.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_bookings_users_user_id");
 
-                    b.Navigation("Flight");
-
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.BookingPassenger", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.BookingBaggage", b =>
                 {
+                    b.HasOne("FlightKS.Models.Entities.BaggageOption", "BaggageOption")
+                        .WithMany("BookingBaggage")
+                        .HasForeignKey("BaggageOptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_booking_baggage_baggage_options_baggage_option_id");
+
                     b.HasOne("FlightKS.Models.Entities.Booking", "Booking")
-                        .WithMany("Passengers")
+                        .WithMany("BookingBaggage")
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_booking_passengers_bookings_booking_id");
+                        .HasConstraintName("fk_booking_baggage_bookings_booking_id");
+
+                    b.HasOne("FlightKS.Models.Entities.Passenger", "Passenger")
+                        .WithMany("BookingBaggage")
+                        .HasForeignKey("PassengerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_booking_baggage_passengers_passenger_id");
+
+                    b.Navigation("BaggageOption");
 
                     b.Navigation("Booking");
+
+                    b.Navigation("Passenger");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Flight", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Airport", "DestinationAirport")
-                        .WithMany()
-                        .HasForeignKey("Destination")
+                    b.HasOne("FlightKS.Models.Entities.Airline", "Airline")
+                        .WithMany("Flights")
+                        .HasForeignKey("AirlineId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_flights_airports_destination");
+                        .HasConstraintName("fk_flights_airlines_airline_id");
+
+                    b.HasOne("FlightKS.Models.Entities.Airport", "DestinationAirport")
+                        .WithMany("DestinationFlights")
+                        .HasForeignKey("DestinationAirportId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_flights_airports_destination_airport_id");
 
                     b.HasOne("FlightKS.Models.Entities.Airport", "OriginAirport")
-                        .WithMany()
-                        .HasForeignKey("Origin")
+                        .WithMany("OriginFlights")
+                        .HasForeignKey("OriginAirportId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_flights_airports_origin");
+                        .HasConstraintName("fk_flights_airports_origin_airport_id");
+
+                    b.Navigation("Airline");
 
                     b.Navigation("DestinationAirport");
 
                     b.Navigation("OriginAirport");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.FlightPrice", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSchedule", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Flight", "Flight")
-                        .WithMany("Prices")
-                        .HasForeignKey("FlightId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("FlightKS.Models.Entities.Aircraft", "Aircraft")
+                        .WithMany("FlightSchedules")
+                        .HasForeignKey("AircraftId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_flight_prices_flights_flight_id");
+                        .HasConstraintName("fk_flight_schedules_aircrafts_aircraft_id");
+
+                    b.HasOne("FlightKS.Models.Entities.Flight", "Flight")
+                        .WithMany("FlightSchedules")
+                        .HasForeignKey("FlightId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_flight_schedules_flights_flight_id");
+
+                    b.Navigation("Aircraft");
 
                     b.Navigation("Flight");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSeat", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.FlightSchedule", "FlightSchedule")
+                        .WithMany("FlightSeats")
+                        .HasForeignKey("FlightScheduleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_flight_seats_flight_schedules_flight_schedule_id");
+
+                    b.HasOne("FlightKS.Models.Entities.Seat", "Seat")
+                        .WithMany("FlightSeats")
+                        .HasForeignKey("SeatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_flight_seats_seats_seat_id");
+
+                    b.Navigation("FlightSchedule");
+
+                    b.Navigation("Seat");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Notification", b =>
@@ -908,164 +1550,210 @@ namespace FlightKS.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.PriceAlert", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Passenger", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Airport", "DestinationAirport")
-                        .WithMany()
-                        .HasForeignKey("Destination")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("FlightKS.Models.Entities.Booking", "Booking")
+                        .WithMany("Passengers")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_price_alerts_airports_destination");
+                        .HasConstraintName("fk_passengers_bookings_booking_id");
 
-                    b.HasOne("FlightKS.Models.Entities.Airport", "OriginAirport")
-                        .WithMany()
-                        .HasForeignKey("Origin")
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Payment", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.Booking", "Booking")
+                        .WithMany("Payments")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_payments_bookings_booking_id");
+
+                    b.Navigation("Booking");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.PaymentRefund", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.Payment", "Payment")
+                        .WithMany("Refunds")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_payment_refunds_payments_payment_id");
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Seat", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.Aircraft", "Aircraft")
+                        .WithMany("Seats")
+                        .HasForeignKey("AircraftId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_seats_aircrafts_aircraft_id");
+
+                    b.Navigation("Aircraft");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Ticket", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.Booking", "Booking")
+                        .WithMany("Tickets")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tickets_bookings_booking_id");
+
+                    b.HasOne("FlightKS.Models.Entities.FlightSchedule", "FlightSchedule")
+                        .WithMany("Tickets")
+                        .HasForeignKey("FlightScheduleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_price_alerts_airports_origin");
+                        .HasConstraintName("fk_tickets_flight_schedules_flight_schedule_id");
+
+                    b.HasOne("FlightKS.Models.Entities.FlightSeat", "FlightSeat")
+                        .WithOne("Ticket")
+                        .HasForeignKey("FlightKS.Models.Entities.Ticket", "FlightSeatId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tickets_flight_seats_flight_seat_id");
+
+                    b.HasOne("FlightKS.Models.Entities.Passenger", "Passenger")
+                        .WithMany("Tickets")
+                        .HasForeignKey("PassengerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_tickets_passengers_passenger_id");
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("FlightSchedule");
+
+                    b.Navigation("FlightSeat");
+
+                    b.Navigation("Passenger");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.UploadedFile", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.User", "UploadedBy")
+                        .WithMany("UploadedFiles")
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_uploaded_files_users_uploaded_by_user_id");
+
+                    b.Navigation("UploadedBy");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.UserRole", b =>
+                {
+                    b.HasOne("FlightKS.Models.Entities.Role", "Role")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_roles_roles_role_id");
 
                     b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithMany("PriceAlerts")
+                        .WithMany("UserRoles")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_price_alerts_users_user_id");
+                        .HasConstraintName("fk_user_roles_users_user_id");
 
-                    b.Navigation("DestinationAirport");
-
-                    b.Navigation("OriginAirport");
+                    b.Navigation("Role");
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.SavedFlight", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Aircraft", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Flight", "Flight")
-                        .WithMany()
-                        .HasForeignKey("FlightId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_saved_flights_flights_flight_id");
+                    b.Navigation("FlightSchedules");
 
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithMany("SavedFlights")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_saved_flights_users_user_id");
-
-                    b.Navigation("Flight");
-
-                    b.Navigation("User");
+                    b.Navigation("Seats");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.SavedTraveler", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Airline", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithMany("SavedTravelers")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_saved_travelers_users_user_id");
+                    b.Navigation("Aircrafts");
 
-                    b.Navigation("User");
+                    b.Navigation("Flights");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.SearchHistory", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.Airport", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.Airport", "DestinationAirport")
-                        .WithMany()
-                        .HasForeignKey("Destination")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_search_history_airports_destination");
+                    b.Navigation("DestinationFlights");
 
-                    b.HasOne("FlightKS.Models.Entities.Airport", "OriginAirport")
-                        .WithMany()
-                        .HasForeignKey("Origin")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_search_history_airports_origin");
-
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithMany("SearchHistory")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_search_history_users_user_id");
-
-                    b.Navigation("DestinationAirport");
-
-                    b.Navigation("OriginAirport");
-
-                    b.Navigation("User");
+                    b.Navigation("OriginFlights");
                 });
 
-            modelBuilder.Entity("FlightKS.Models.Entities.UserLoyalty", b =>
+            modelBuilder.Entity("FlightKS.Models.Entities.BaggageOption", b =>
                 {
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithOne("Loyalty")
-                        .HasForeignKey("FlightKS.Models.Entities.UserLoyalty", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_loyalty_users_user_id");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("FlightKS.Models.Entities.UserPassport", b =>
-                {
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithOne("Passport")
-                        .HasForeignKey("FlightKS.Models.Entities.UserPassport", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_passports_users_user_id");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("FlightKS.Models.Entities.UserPreferences", b =>
-                {
-                    b.HasOne("FlightKS.Models.Entities.User", "User")
-                        .WithOne("Preferences")
-                        .HasForeignKey("FlightKS.Models.Entities.UserPreferences", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_user_preferences_users_user_id");
-
-                    b.Navigation("User");
+                    b.Navigation("BookingBaggage");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Booking", b =>
                 {
+                    b.Navigation("BookingBaggage");
+
                     b.Navigation("Passengers");
+
+                    b.Navigation("Payments");
+
+                    b.Navigation("Tickets");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.Flight", b =>
                 {
-                    b.Navigation("Prices");
+                    b.Navigation("FlightSchedules");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSchedule", b =>
+                {
+                    b.Navigation("FlightSeats");
+
+                    b.Navigation("Tickets");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.FlightSeat", b =>
+                {
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Passenger", b =>
+                {
+                    b.Navigation("BookingBaggage");
+
+                    b.Navigation("Tickets");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Payment", b =>
+                {
+                    b.Navigation("Refunds");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Role", b =>
+                {
+                    b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("FlightKS.Models.Entities.Seat", b =>
+                {
+                    b.Navigation("FlightSeats");
                 });
 
             modelBuilder.Entity("FlightKS.Models.Entities.User", b =>
                 {
                     b.Navigation("Bookings");
 
-                    b.Navigation("Loyalty");
-
                     b.Navigation("Notifications");
 
-                    b.Navigation("Passport");
+                    b.Navigation("UploadedFiles");
 
-                    b.Navigation("Preferences");
-
-                    b.Navigation("PriceAlerts");
-
-                    b.Navigation("SavedFlights");
-
-                    b.Navigation("SavedTravelers");
-
-                    b.Navigation("SearchHistory");
+                    b.Navigation("UserRoles");
                 });
 #pragma warning restore 612, 618
         }

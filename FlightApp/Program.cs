@@ -1,11 +1,18 @@
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using FlightKS.Auth;
 using FlightKS.Data;
-using FlightKS.Endpoints;
+using FlightKS.Endpoints.V1;
+using FlightKS.Endpoints.V1.Admin;
+using FlightKS.Endpoints.V1.FlightManager;
 using FlightKS.Enums;
 using FlightKS.Services;
 using FlightKS.Services.Interfaces;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using Scalar.AspNetCore;
 using Serilog;
@@ -32,8 +39,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 
-// Migrate first with a vanilla data source so the PG enum types exist
-// before the typed data source probes them on its first connection.
 await using (var bootCtx = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
     .UseNpgsql(connectionString)
     .UseSnakeCaseNamingConvention()
@@ -43,30 +48,70 @@ await using (var bootCtx = new AppDbContext(new DbContextOptionsBuilder<AppDbCon
 }
 
 var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-dataSourceBuilder.MapEnum<CabinClass>("cabin_class");
-dataSourceBuilder.MapEnum<TripType>("trip_type");
 dataSourceBuilder.MapEnum<BookingStatus>("booking_status");
-dataSourceBuilder.MapEnum<NotifType>("notif_type");
-dataSourceBuilder.MapEnum<SeatSide>("seat_side");
-dataSourceBuilder.MapEnum<PassengerType>("passenger_type");
+dataSourceBuilder.MapEnum<FlightScheduleStatus>("flight_schedule_status");
+dataSourceBuilder.MapEnum<SeatClass>("seat_class");
+dataSourceBuilder.MapEnum<FlightSeatStatus>("flight_seat_status");
+dataSourceBuilder.MapEnum<TicketStatus>("ticket_status");
+dataSourceBuilder.MapEnum<PaymentMethod>("payment_method");
+dataSourceBuilder.MapEnum<PaymentStatus>("payment_status");
+dataSourceBuilder.MapEnum<RefundStatus>("refund_status");
 var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(dataSource, npg =>
     {
-        npg.MapEnum<CabinClass>("cabin_class");
-        npg.MapEnum<TripType>("trip_type");
         npg.MapEnum<BookingStatus>("booking_status");
-        npg.MapEnum<NotifType>("notif_type");
-        npg.MapEnum<SeatSide>("seat_side");
-        npg.MapEnum<PassengerType>("passenger_type");
+        npg.MapEnum<FlightScheduleStatus>("flight_schedule_status");
+        npg.MapEnum<SeatClass>("seat_class");
+        npg.MapEnum<FlightSeatStatus>("flight_seat_status");
+        npg.MapEnum<TicketStatus>("ticket_status");
+        npg.MapEnum<PaymentMethod>("payment_method");
+        npg.MapEnum<PaymentStatus>("payment_status");
+        npg.MapEnum<RefundStatus>("refund_status");
     }).UseSnakeCaseNamingConvention());
 
-builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
-builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddTransient<IClaimsTransformation, KeycloakRoleClaimsTransformer>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var keycloak = builder.Configuration.GetSection("Keycloak");
+        options.Authority = keycloak["Authority"];
+        options.Audience = keycloak["Audience"];
+        options.RequireHttpsMetadata = bool.TryParse(keycloak["RequireHttpsMetadata"], out var https) && https;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = !string.IsNullOrEmpty(keycloak["Audience"]),
+            ValidateLifetime = true,
+            NameClaimType = "preferred_username",
+            RoleClaimType = ClaimTypes.Role,
+        };
+    });
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(Policies.User, p => p.RequireAuthenticatedUser().RequireRole(Policies.User))
+    .AddPolicy(Policies.Admin, p => p.RequireAuthenticatedUser().RequireRole(Policies.Admin))
+    .AddPolicy(Policies.FlightManager, p => p.RequireAuthenticatedUser().RequireRole(Policies.FlightManager));
+
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAirportService, AirportService>();
+builder.Services.AddScoped<IAirlineService, AirlineService>();
+builder.Services.AddScoped<IAircraftService, AircraftService>();
 builder.Services.AddScoped<IFlightService, FlightService>();
+builder.Services.AddScoped<IFlightScheduleService, FlightScheduleService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
-builder.Services.AddScoped<IPriceAlertService, PriceAlertService>();
+builder.Services.AddScoped<IPassengerService, PassengerService>();
+builder.Services.AddScoped<ISeatReservationService, SeatReservationService>();
+builder.Services.AddScoped<IBaggageOptionService, BaggageOptionService>();
+builder.Services.AddScoped<IBookingBaggageService, BookingBaggageService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 var app = builder.Build();
 
@@ -77,10 +122,30 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.MapAuthEndpoints();
-app.MapFlightEndpoints();
-app.MapBookingEndpoints();
-app.MapPriceAlertEndpoints();
+var v1 = app.MapGroup("/api/v1");
+v1.MapAuthEndpoints();
+v1.MapUsersEndpoints();
+v1.MapAirportsEndpoints();
+v1.MapAirlinesEndpoints();
+v1.MapFlightsEndpoints();
+v1.MapFlightSchedulesEndpoints();
+v1.MapBaggageOptionsEndpoints();
+v1.MapBookingsEndpoints();
+v1.MapBookingPassengersEndpoints();
+v1.MapSeatReservationsEndpoints();
+v1.MapBookingBaggageEndpoints();
+v1.MapPaymentsEndpoints();
+v1.MapNotificationsEndpoints();
+v1.MapAdminDashboardEndpoints();
+v1.MapAdminAirportsEndpoints();
+v1.MapAdminAirlinesEndpoints();
+v1.MapAdminAircraftsEndpoints();
+v1.MapAdminFlightsEndpoints();
+v1.MapAdminFlightSchedulesEndpoints();
+v1.MapFlightManagerDashboardEndpoints();
+v1.MapFlightManagerSchedulesEndpoints();
 
 app.Run();
