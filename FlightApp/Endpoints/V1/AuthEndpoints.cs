@@ -9,21 +9,34 @@ public static class AuthEndpoints
 {
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/auth").WithTags("Auth").RequireAuthorization();
+        var group = app.MapGroup("/auth").WithTags("Auth");
 
-        group.MapGet("/me", Me).WithName("AuthMe");
-        group.MapPost("/logout", Logout).WithName("AuthLogout");
+        group.MapGet("/me", GetMe)
+            .RequireAuthorization()
+            .WithName("GetCurrentUser");
+
+        group.MapPost("/logout", Logout)
+            .RequireAuthorization()
+            .WithName("Logout");
 
         return app;
     }
 
-    private static async Task<IResult> Me(ICurrentUserAccessor current, IUserService users, CancellationToken cancellationToken)
+    private static async Task<IResult> GetMe(
+        ICurrentUserAccessor currentUser,
+        IUserService users,
+        CancellationToken cancellationToken)
     {
-        var kid = current.KeycloakUserId;
-        if (string.IsNullOrEmpty(kid)) return TypedResults.Unauthorized();
-        var user = await users.GetByKeycloakIdAsync(kid, cancellationToken);
-        return TypedResults.Ok(new AuthMeResponseDto(kid, user?.ToResponse()));
+        var user = await users.GetByKeycloakIdAsync(currentUser.KeycloakUserId, cancellationToken);
+        return user is null ? TypedResults.NotFound() : TypedResults.Ok(user.ToResponse());
     }
 
-    private static IResult Logout() => TypedResults.NoContent();
+    private static async Task<IResult> Logout(
+        LogoutDto dto,
+        IKeycloakService keycloak,
+        CancellationToken cancellationToken)
+    {
+        await keycloak.LogoutAsync(dto.RefreshToken, cancellationToken);
+        return TypedResults.NoContent();
+    }
 }

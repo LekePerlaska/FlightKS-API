@@ -3,6 +3,7 @@ namespace FlightKS.Models.Dtos.Users;
 public record UserCreateDto(
     string FullName,
     string Email,
+    string Password,
     string? PhoneNumber,
     DateOnly? DateOfBirth,
     string? PassportNumber,

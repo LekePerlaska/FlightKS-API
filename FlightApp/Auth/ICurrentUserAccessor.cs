@@ -1,11 +1,14 @@
-using FlightKS.Models.Entities;
-
 namespace FlightKS.Auth;
 
 public interface ICurrentUserAccessor
 {
-    string? KeycloakUserId { get; }
-    bool IsAuthenticated { get; }
-    Task<User?> GetUserAsync(CancellationToken cancellationToken = default);
+    string KeycloakUserId { get; }
+    string Email { get; }
+    string FullName { get; }
+
+    /// <summary>
+    /// Resolves the local DB user Id by looking up KeycloakUserId.
+    /// Returns null if the user has no local DB record.
+    /// </summary>
     Task<Guid?> GetUserIdAsync(CancellationToken cancellationToken = default);
 }

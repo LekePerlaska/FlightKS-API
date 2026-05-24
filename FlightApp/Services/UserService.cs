@@ -7,6 +7,8 @@ namespace FlightKS.Services;
 
 public class UserService(AppDbContext db) : IUserService
 {
+    private const int UserRoleId = 3; // Seeded: Admin=1, FlightManager=2, User=3
+
     public async Task<User> CreateAsync(
         string keycloakUserId,
         string fullName,
@@ -18,9 +20,10 @@ public class UserService(AppDbContext db) : IUserService
         CancellationToken cancellationToken = default)
     {
         var exists = await db.Users.AsNoTracking()
-            .AnyAsync(u => u.KeycloakUserId == keycloakUserId || u.Email == email, cancellationToken);
+            .AnyAsync(u => u.Email == email || u.KeycloakUserId == keycloakUserId, cancellationToken);
+
         if (exists)
-            throw new InvalidOperationException("A user with this Keycloak id or email already exists.");
+            throw new InvalidOperationException("A user with this email already exists.");
 
         var user = new User
         {
@@ -34,9 +37,14 @@ public class UserService(AppDbContext db) : IUserService
         };
 
         db.Users.Add(user);
-        await AssignDefaultRoleAsync(user, cancellationToken);
+        db.UserRoles.Add(new UserRole { User = user, RoleId = UserRoleId });
+
         await db.SaveChangesAsync(cancellationToken);
-        return user;
+
+        // Reload with roles populated for the response
+        return await db.Users.AsNoTracking()
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }
 
     public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -70,12 +78,5 @@ public class UserService(AppDbContext db) : IUserService
 
         await db.SaveChangesAsync(cancellationToken);
         return user;
-    }
-
-    private async Task AssignDefaultRoleAsync(User user, CancellationToken cancellationToken)
-    {
-        var userRole = await db.Roles.FirstOrDefaultAsync(r => r.Name == "User", cancellationToken);
-        if (userRole is null) return;
-        user.UserRoles.Add(new UserRole { User = user, RoleId = userRole.Id });
     }
 }
