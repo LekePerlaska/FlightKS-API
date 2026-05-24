@@ -1,35 +1,35 @@
 using System.Security.Claims;
-using FlightKS.Data;
-using FlightKS.Models.Entities;
-using Microsoft.EntityFrameworkCore;
+using FlightKS.Services.Interfaces;
 
 namespace FlightKS.Auth;
 
-public class CurrentUserAccessor(IHttpContextAccessor httpContext, AppDbContext db) : ICurrentUserAccessor
+public class CurrentUserAccessor(
+    IHttpContextAccessor httpContextAccessor,
+    IUserService userService) : ICurrentUserAccessor
 {
-    public string? KeycloakUserId =>
-        httpContext.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? httpContext.HttpContext?.User.FindFirstValue("sub");
+    private ClaimsPrincipal User =>
+        httpContextAccessor.HttpContext?.User
+        ?? throw new InvalidOperationException("No HTTP context available.");
 
-    public bool IsAuthenticated => httpContext.HttpContext?.User.Identity?.IsAuthenticated == true;
+    public string KeycloakUserId =>
+        User.FindFirstValue("sub")
+        ?? throw new UnauthorizedAccessException("Token is missing the 'sub' claim.");
 
-    public async Task<User?> GetUserAsync(CancellationToken cancellationToken = default)
-    {
-        var kid = KeycloakUserId;
-        if (string.IsNullOrEmpty(kid)) return null;
-        return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.KeycloakUserId == kid, cancellationToken);
-    }
+    public string Email =>
+        User.FindFirstValue("email") ?? string.Empty;
+
+    public string FullName =>
+        User.FindFirstValue("name")
+        ?? User.FindFirstValue("preferred_username")
+        ?? string.Empty;
 
     public async Task<Guid?> GetUserIdAsync(CancellationToken cancellationToken = default)
     {
-        var kid = KeycloakUserId;
-        if (string.IsNullOrEmpty(kid)) return null;
-        var id = await db.Users.AsNoTracking()
-            .Where(u => u.KeycloakUserId == kid)
-            .Select(u => (Guid?)u.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        return id;
+        string keycloakId;
+        try { keycloakId = KeycloakUserId; }
+        catch { return null; }
+
+        var user = await userService.GetByKeycloakIdAsync(keycloakId, cancellationToken);
+        return user?.Id;
     }
 }
