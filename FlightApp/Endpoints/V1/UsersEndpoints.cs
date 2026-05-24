@@ -9,11 +9,11 @@ public static class UsersEndpoints
 {
     public static IEndpointRouteBuilder MapUsersEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/users").WithTags("Users").RequireAuthorization();
+        var group = app.MapGroup("/users").WithTags("Users");
 
-        group.MapPost("/", Create).WithName("CreateUser");
-        group.MapGet("/me", Me).WithName("GetMe");
-        group.MapPatch("/me", UpdateMe).WithName("UpdateMe");
+        group.MapPost("/", Create).WithName("CreateUser").RequireAuthorization();
+        group.MapGet("/me", Me).WithName("GetMe").RequireAuthorization();
+        group.MapPatch("/me", UpdateMe).WithName("UpdateMe").RequireAuthorization();
 
         return app;
     }
