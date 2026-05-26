@@ -25,4 +25,5 @@ public class FlightSchedule
 
     public ICollection<FlightSeat> FlightSeats { get; set; } = [];
     public ICollection<Ticket> Tickets { get; set; } = [];
+    public ICollection<ItinerarySegment> ItinerarySegments { get; set; } = [];
 }

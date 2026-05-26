@@ -45,7 +45,10 @@ public class BookingBaggageService(AppDbContext db) : IBookingBaggageService
         };
         db.BookingBaggage.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
-        return entity;
+
+        return await db.BookingBaggage
+            .Include(bb => bb.BaggageOption)
+            .FirstAsync(bb => bb.Id == entity.Id, cancellationToken);
     }
 
     public async Task<BookingBaggage?> UpdateQuantityAsync(

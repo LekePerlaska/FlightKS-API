@@ -9,6 +9,9 @@ public class Booking
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
 
+    public Guid? ItineraryId { get; set; }
+    public Itinerary? Itinerary { get; set; }
+
     public required string BookingReference { get; set; }
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
     public decimal TotalAmount { get; set; }
