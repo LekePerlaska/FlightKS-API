@@ -1,3 +1,4 @@
+using FlightKS.Auth;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Users;
 using FlightKS.Services.Interfaces;
@@ -11,10 +12,37 @@ public static class UsersEndpoints
         var group = app.MapGroup("/users").WithTags("Users");
 
         group.MapPost("/", Create).WithName("CreateUser");
+        group.MapGet("/me", GetMe).WithName("GetCurrentUserProfile").RequireAuthorization();
+        group.MapPatch("/me", UpdateMe).WithName("UpdateCurrentUserProfile").RequireAuthorization();
         group.MapGet("/{id:guid}", GetById).WithName("GetUserById");
         group.MapPatch("/{id:guid}", Update).WithName("UpdateUser").RequireAuthorization();
 
         return app;
+    }
+
+    private static async Task<IResult> GetMe(
+        ICurrentUserAccessor accessor,
+        IUserService users,
+        CancellationToken cancellationToken)
+    {
+        var user = await users.GetByKeycloakIdAsync(accessor.KeycloakUserId, cancellationToken);
+        return user is null ? TypedResults.NotFound() : TypedResults.Ok(user.ToResponse());
+    }
+
+    private static async Task<IResult> UpdateMe(
+        UserUpdateDto dto,
+        ICurrentUserAccessor accessor,
+        IUserService users,
+        CancellationToken cancellationToken)
+    {
+        var user = await users.GetByKeycloakIdAsync(accessor.KeycloakUserId, cancellationToken);
+        if (user is null) return TypedResults.NotFound();
+
+        var updated = await users.UpdateAsync(
+            user.Id, dto.FullName, dto.PhoneNumber, dto.DateOfBirth,
+            dto.PassportNumber, dto.Nationality, cancellationToken);
+
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToResponse());
     }
 
     private static async Task<IResult> Create(

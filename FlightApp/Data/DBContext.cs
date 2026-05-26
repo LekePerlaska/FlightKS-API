@@ -29,6 +29,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AdminLog> AdminLogs => Set<AdminLog>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AiSearchDocument> AiSearchDocuments => Set<AiSearchDocument>();
+    public DbSet<Itinerary> Itineraries => Set<Itinerary>();
+    public DbSet<ItinerarySegment> ItinerarySegments => Set<ItinerarySegment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +61,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         ConfigureAdminLog(modelBuilder);
         ConfigureAuditLog(modelBuilder);
         ConfigureAiSearchDocument(modelBuilder);
+        ConfigureItinerary(modelBuilder);
+        ConfigureItinerarySegment(modelBuilder);
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
@@ -283,6 +287,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(u => u.Bookings)
                 .HasForeignKey(b => b.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(b => b.Itinerary)
+                .WithMany(i => i.Bookings)
+                .HasForeignKey(b => b.ItineraryId)
+                .OnDelete(DeleteBehavior.SetNull);
             e.HasQueryFilter(b => b.DeletedAt == null);
         });
 
@@ -500,5 +508,44 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(d => d.Embedding).HasColumnType("real[]");
             e.Property(d => d.CreatedAt).HasDefaultValueSql("now()");
             e.Property(d => d.UpdatedAt).HasDefaultValueSql("now()");
+        });
+
+    private static void ConfigureItinerary(ModelBuilder mb) =>
+        mb.Entity<Itinerary>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(i => i.TotalPrice).HasColumnType("numeric(10,2)");
+            e.Property(i => i.IsActive).HasDefaultValue(true);
+            e.Property(i => i.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(i => i.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(i => new { i.OriginAirportId, i.DestinationAirportId, i.DepartureTime });
+            e.HasOne(i => i.OriginAirport)
+                .WithMany()
+                .HasForeignKey(i => i.OriginAirportId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(i => i.DestinationAirport)
+                .WithMany()
+                .HasForeignKey(i => i.DestinationAirportId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasQueryFilter(i => i.DeletedAt == null);
+        });
+
+    private static void ConfigureItinerarySegment(ModelBuilder mb) =>
+        mb.Entity<ItinerarySegment>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(s => s.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(s => new { s.ItineraryId, s.SegmentOrder }).IsUnique();
+            e.HasOne(s => s.Itinerary)
+                .WithMany(i => i.Segments)
+                .HasForeignKey(s => s.ItineraryId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.FlightSchedule)
+                .WithMany(fs => fs.ItinerarySegments)
+                .HasForeignKey(s => s.FlightScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 }

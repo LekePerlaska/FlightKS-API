@@ -57,7 +57,42 @@ public class KeycloakService(
         var location = response.Headers.Location?.ToString()
             ?? throw new InvalidOperationException("Keycloak did not return a Location header.");
 
-        return location.Split('/').Last();
+        var userId = location.Split('/').Last();
+
+        await AssignRealmRoleAsync(userId, "User", adminToken, cancellationToken);
+
+        return userId;
+    }
+
+    private async Task AssignRealmRoleAsync(
+        string userId,
+        string roleName,
+        string adminToken,
+        CancellationToken cancellationToken)
+    {
+        using var roleReq = new HttpRequestMessage(
+            HttpMethod.Get, $"{_opts.AdminApiBaseUrl}/roles/{roleName}");
+        roleReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+
+        var roleResp = await http.SendAsync(roleReq, cancellationToken);
+        if (!roleResp.IsSuccessStatusCode) return;
+
+        using var roleDoc = await roleResp.Content.ReadFromJsonAsync<JsonDocument>(
+            cancellationToken: cancellationToken);
+        if (roleDoc is null) return;
+
+        var roleId = roleDoc.RootElement.GetProperty("id").GetString();
+
+        using var assignReq = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{_opts.AdminApiBaseUrl}/users/{userId}/role-mappings/realm");
+        assignReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        assignReq.Content = JsonContent.Create(new[]
+        {
+            new { id = roleId, name = roleName }
+        });
+
+        await http.SendAsync(assignReq, cancellationToken);
     }
 
     public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
