@@ -27,4 +27,15 @@ public record UserResponseDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<UserDocumentResponseDto> Documents);
+
+public record UserDocumentResponseDto(
+    Guid Id,
+    string FileName,
+    string OriginalFileName,
+    string ContentType,
+    long SizeBytes,
+    string? RelatedEntityName,
+    Guid? RelatedEntityId,
+    DateTime CreatedAt);

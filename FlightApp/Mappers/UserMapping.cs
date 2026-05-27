@@ -16,5 +16,17 @@ public static class UserMapping
         user.IsActive,
         user.CreatedAt,
         user.UpdatedAt,
-        [.. user.UserRoles.Select(ur => ur.Role.Name)]);
+        [.. user.UserRoles.Select(ur => ur.Role.Name)],
+        [.. user.UploadedFiles
+            .Where(file => file.RelatedEntityName == "UserPassportDocument")
+            .OrderByDescending(file => file.CreatedAt)
+            .Select(file => new UserDocumentResponseDto(
+                file.Id,
+                file.FileName,
+                file.OriginalFileName,
+                file.ContentType,
+                file.SizeBytes,
+                file.RelatedEntityName,
+                file.RelatedEntityId,
+                file.CreatedAt))]);
 }
