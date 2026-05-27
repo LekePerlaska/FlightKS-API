@@ -1,5 +1,6 @@
 using FlightKS.Enums;
 using FlightKS.Mappers;
+using FlightKS.Models.Dtos.FlightSchedules;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Services.Interfaces;
 
@@ -15,6 +16,8 @@ public static class ItinerariesEndpoints
         group.MapGet("/{id:guid}", GetById).WithName("GetItinerary");
         group.MapGet("/{id:guid}/segments", GetSegments).WithName("GetItinerarySegments");
         group.MapGet("/{id:guid}/seat-summary", GetSeatSummary).WithName("GetItinerarySeatSummary");
+        group.MapGet("/{id:guid}/segments/{segmentId:guid}/seats", GetSegmentSeats)
+            .WithName("GetItinerarySegmentSeats");
 
         return app;
     }
@@ -77,5 +80,21 @@ public static class ItinerariesEndpoints
         }
 
         return TypedResults.Ok(new ItinerarySeatSummaryDto([.. summaries]));
+    }
+
+    private static async Task<IResult> GetSegmentSeats(
+        Guid id,
+        Guid segmentId,
+        IItineraryService itineraries,
+        IFlightScheduleService schedules,
+        CancellationToken cancellationToken)
+    {
+        var segment = (await itineraries.GetSegmentsAsync(id, cancellationToken))
+            .FirstOrDefault(s => s.Id == segmentId);
+
+        if (segment is null) return TypedResults.NotFound();
+
+        var seats = await schedules.GetSeatsAsync(segment.FlightScheduleId, cancellationToken);
+        return TypedResults.Ok(seats.Select(s => s.ToDto()));
     }
 }

@@ -6,6 +6,7 @@ using FlightKS.Endpoints.V1;
 using FlightKS.Endpoints.V1.Admin;
 using FlightKS.Endpoints.V1.FlightManager;
 using FlightKS.Enums;
+using FlightKS.Hubs;
 using FlightKS.Models.Config;
 using FlightKS.Services;
 using FlightKS.Services.Interfaces;
@@ -59,6 +60,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IKeycloakService, KeycloakService>();
+builder.Services.AddSignalR();
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -164,5 +166,7 @@ v1.MapAdminFlightsEndpoints();
 v1.MapAdminFlightSchedulesEndpoints();
 v1.MapFlightManagerDashboardEndpoints();
 v1.MapFlightManagerSchedulesEndpoints();
+
+app.MapHub<SeatHub>("/hubs/seats");
 
 app.Run();
