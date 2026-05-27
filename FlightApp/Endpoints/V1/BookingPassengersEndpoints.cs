@@ -14,6 +14,7 @@ public static class BookingPassengersEndpoints
             .RequireAuthorization(Policies.User);
 
         group.MapPost("/", Add).WithName("AddBookingPassenger");
+        group.MapPut("/", BulkUpdate).WithName("BulkUpdateBookingPassengers");
 
         return app;
     }
@@ -34,5 +35,25 @@ public static class BookingPassengersEndpoints
         {
             return TypedResults.BadRequest(new { error = ex.Message });
         }
+    }
+
+    private static async Task<IResult> BulkUpdate(Guid bookingId, PassengerBulkUpdateItemDto[] items, ICurrentUserAccessor current, IPassengerService passengers, CancellationToken cancellationToken)
+    {
+        var userId = await current.GetUserIdAsync(cancellationToken);
+        if (userId is null) return TypedResults.Unauthorized();
+
+        var results = new List<object>();
+        foreach (var item in items)
+        {
+            var updated = await passengers.UpdateAsync(
+                bookingId, item.Id, userId.Value,
+                item.FirstName, item.LastName, item.DateOfBirth,
+                item.Gender, item.PassportNumber, item.Nationality,
+                cancellationToken);
+            if (updated is null)
+                return TypedResults.NotFound(new { error = $"Passenger '{item.Id}' not found." });
+            results.Add(updated.ToResponse());
+        }
+        return TypedResults.Ok(results);
     }
 }

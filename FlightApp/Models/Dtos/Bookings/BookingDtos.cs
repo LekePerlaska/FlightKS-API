@@ -6,7 +6,7 @@ using FlightKS.Models.Dtos.Tickets;
 
 namespace FlightKS.Models.Dtos.Bookings;
 
-public record BookingCreateDto;
+public record BookingCreateDto(Guid ItineraryId, int PassengerCount, string? CabinClass);
 
 public record BookingResponseDto(
     Guid Id,

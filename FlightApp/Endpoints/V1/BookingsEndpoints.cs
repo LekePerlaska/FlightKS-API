@@ -21,13 +21,20 @@ public static class BookingsEndpoints
         return app;
     }
 
-    private static async Task<IResult> Create(ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> Create(BookingCreateDto dto, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
     {
         var userId = await current.GetUserIdAsync(cancellationToken);
         if (userId is null) return TypedResults.Unauthorized();
 
-        var booking = await bookings.CreateAsync(userId.Value, cancellationToken);
-        return TypedResults.Created($"/api/v1/bookings/{booking.Id}/summary", booking.ToResponse());
+        try
+        {
+            var booking = await bookings.CreateAsync(userId.Value, dto.ItineraryId, dto.PassengerCount, cancellationToken);
+            return TypedResults.Created($"/api/v1/bookings/{booking.Id}/summary", booking.ToResponse());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> My(ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)

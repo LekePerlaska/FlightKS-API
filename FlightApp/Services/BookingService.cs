@@ -8,14 +8,20 @@ namespace FlightKS.Services;
 
 public class BookingService(AppDbContext db) : IBookingService
 {
-    public async Task<Booking> CreateAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, CancellationToken cancellationToken = default)
     {
+        var itinerary = await db.Itineraries.AsNoTracking()
+            .FirstOrDefaultAsync(i => i.Id == itineraryId && i.IsActive, cancellationToken);
+        if (itinerary is null)
+            throw new InvalidOperationException($"Itinerary '{itineraryId}' not found or inactive.");
+
         var booking = new Booking
         {
             UserId = userId,
+            ItineraryId = itineraryId,
             BookingReference = GenerateReference(),
             Status = BookingStatus.Pending,
-            TotalAmount = 0m,
+            TotalAmount = itinerary.TotalPrice * passengerCount,
         };
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(cancellationToken);
