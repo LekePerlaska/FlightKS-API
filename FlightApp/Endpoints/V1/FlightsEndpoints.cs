@@ -26,12 +26,12 @@ public static class FlightsEndpoints
     }
 
     private static async Task<IResult> GetFeatured(
-        IFlightService flights,
+        IItineraryService itineraries,
         CancellationToken cancellationToken,
         int limit = 4)
     {
-        var results = await flights.FeaturedAsync(limit, cancellationToken);
-        return TypedResults.Ok(results.Select(s => s.ToSearchResult()));
+        var results = await itineraries.GetFeaturedAsync(limit, cancellationToken);
+        return TypedResults.Ok(results.Select(i => i.ToSearchResult()));
     }
 
     private static async Task<IResult> Search(

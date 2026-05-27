@@ -5,7 +5,8 @@ public record AirlineDto(
     string Code,
     string Name,
     string Country,
-    Guid? LogoFileId);
+    Guid? LogoFileId,
+    string? LogoUrl);
 
 public record AirlineAdminListItemDto(
     Guid Id,
