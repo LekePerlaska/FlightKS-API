@@ -157,6 +157,7 @@ v1.MapBookingPassengersEndpoints();
 v1.MapSeatReservationsEndpoints();
 v1.MapBookingBaggageEndpoints();
 v1.MapPaymentsEndpoints();
+v1.MapTicketsEndpoints();
 v1.MapNotificationsEndpoints();
 v1.MapAdminDashboardEndpoints();
 v1.MapAdminAirportsEndpoints();

@@ -25,7 +25,8 @@ public class TicketService(AppDbContext db) : ITicketService
     {
         var q = db.Tickets.AsNoTracking()
             .Include(t => t.Passenger)
-            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(t => t.FlightSeat).ThenInclude(fs => fs!.Seat)
             .Where(t => t.BookingId == bookingId);
         if (ownerUserId is { } uid) q = q.Where(t => t.Booking.UserId == uid);
