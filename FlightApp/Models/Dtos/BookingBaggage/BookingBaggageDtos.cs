@@ -7,7 +7,9 @@ public record BookingBaggageCreateDto(
     Guid BaggageOptionId,
     int Quantity);
 
-public record BookingBaggageUpdateDto(int Quantity);
+public record BookingBaggageUpdateDto(
+    Guid Id,
+    int Quantity);
 
 public record BookingBaggageResponseDto(
     Guid Id,

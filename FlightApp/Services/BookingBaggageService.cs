@@ -59,6 +59,7 @@ public class BookingBaggageService(AppDbContext db) : IBookingBaggageService
         CancellationToken cancellationToken = default)
     {
         var item = await db.BookingBaggage
+            .Include(bb => bb.BaggageOption)
             .Where(bb => bb.Id == bookingBaggageId && bb.BookingId == bookingId && bb.Booking.UserId == ownerUserId)
             .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return null;
