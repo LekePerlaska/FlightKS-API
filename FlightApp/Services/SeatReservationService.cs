@@ -1,12 +1,14 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Hubs;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class SeatReservationService(AppDbContext db) : ISeatReservationService
+public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHub) : ISeatReservationService
 {
     private static readonly TimeSpan DefaultHold = TimeSpan.FromMinutes(15);
 
@@ -62,6 +64,8 @@ public class SeatReservationService(AppDbContext db) : ISeatReservationService
         db.Tickets.Add(ticket);
 
         await db.SaveChangesAsync(cancellationToken);
+        await seatHub.Clients.Group(seat.FlightScheduleId.ToString())
+            .SendAsync("SeatReserved", seat.Id, cancellationToken: cancellationToken);
         return new SeatReservationResult(seat, ticket);
     }
 
@@ -83,6 +87,8 @@ public class SeatReservationService(AppDbContext db) : ISeatReservationService
         seat.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
+        await seatHub.Clients.Group(seat.FlightScheduleId.ToString())
+            .SendAsync("SeatReleased", seat.Id, cancellationToken: cancellationToken);
         return true;
     }
 
