@@ -171,6 +171,7 @@ var v1 = app.MapGroup("/api/v1");
 v1.MapAuthEndpoints();
 v1.MapUsersEndpoints();
 v1.MapAirportsEndpoints();
+v1.MapTimezonesEndpoints();
 v1.MapAirlinesEndpoints();
 v1.MapFlightsEndpoints();
 v1.MapFlightSchedulesEndpoints();

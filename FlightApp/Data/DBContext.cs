@@ -123,7 +123,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(a => a.Code).IsUnique();
             e.Property(a => a.City).HasMaxLength(100).IsRequired();
             e.Property(a => a.Country).HasMaxLength(100).IsRequired();
-            e.Property(a => a.TimeZone).HasMaxLength(60);
+            e.Property(a => a.TimeZone).HasMaxLength(60).IsRequired();
             e.Property(a => a.IsActive).HasDefaultValue(true);
             e.Property(a => a.CreatedAt).HasDefaultValueSql("now()");
             e.Property(a => a.UpdatedAt).HasDefaultValueSql("now()");
