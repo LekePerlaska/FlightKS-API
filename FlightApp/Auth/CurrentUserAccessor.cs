@@ -23,6 +23,9 @@ public class CurrentUserAccessor(
         ?? User.FindFirstValue("preferred_username")
         ?? string.Empty;
 
+    public IReadOnlyList<string> Roles =>
+        User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+
     public async Task<Guid?> GetUserIdAsync(CancellationToken cancellationToken = default)
     {
         string keycloakId;

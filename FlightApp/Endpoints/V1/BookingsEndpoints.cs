@@ -17,6 +17,7 @@ public static class BookingsEndpoints
         group.MapGet("/{bookingId:guid}/price-summary", PriceSummary).WithName("GetBookingPriceSummary");
         group.MapGet("/{bookingId:guid}/confirmation", Confirmation).WithName("GetBookingConfirmation");
         group.MapGet("/{bookingId:guid}/tickets", Tickets).WithName("GetBookingTickets");
+        group.MapPost("/{bookingId:guid}/cancel", Cancel).WithName("CancelBooking");
 
         return app;
     }
@@ -82,5 +83,14 @@ public static class BookingsEndpoints
 
         var list = await tickets.GetForBookingAsync(bookingId, userId, cancellationToken);
         return TypedResults.Ok(list.Select(t => t.ToResponse()));
+    }
+
+    private static async Task<IResult> Cancel(Guid bookingId, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    {
+        var userId = await current.GetUserIdAsync(cancellationToken);
+        if (userId is null) return TypedResults.Unauthorized();
+
+        var cancelled = await bookings.CancelAsync(bookingId, userId.Value, cancellationToken);
+        return cancelled ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }

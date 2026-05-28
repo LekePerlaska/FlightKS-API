@@ -27,8 +27,12 @@ public static class AuthEndpoints
         IUserService users,
         CancellationToken cancellationToken)
     {
-        var user = await users.GetByKeycloakIdAsync(currentUser.KeycloakUserId, cancellationToken);
-        return user is null ? TypedResults.NotFound() : TypedResults.Ok(user.ToResponse());
+        var user = await users.GetOrCreateAsync(
+            currentUser.KeycloakUserId,
+            currentUser.Email,
+            currentUser.FullName,
+            cancellationToken);
+        return TypedResults.Ok(user.ToResponse(currentUser.Roles));
     }
 
     private static async Task<IResult> Logout(

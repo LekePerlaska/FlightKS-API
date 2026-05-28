@@ -36,16 +36,40 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<KeycloakOptions>(
     builder.Configuration.GetSection(KeycloakOptions.SectionName));
 
+var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? string.Empty;
+var runningInDocker = keycloakAuthority.Contains("keycloak:", StringComparison.OrdinalIgnoreCase);
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = builder.Configuration["Keycloak:Authority"];
+        options.Authority = keycloakAuthority;
         options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("Keycloak:RequireHttpsMetadata");
         options.MapInboundClaims = false;
+        if (runningInDocker)
+        {
+            // Keycloak's discovery doc returns localhost:8080 for jwks_uri, but that
+            // doesn't resolve inside Docker — rewrite to the internal service name.
+            options.BackchannelHttpHandler = new KeycloakBackchannelHandler(new HttpClientHandler());
+        }
         options.TokenValidationParameters = new()
         {
             ValidateAudience = false,
+            // Token iss is localhost:8080 but authority inside Docker is keycloak:8080
+            ValidateIssuer = false,
             NameClaimType = "preferred_username",
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    context.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
         };
     });
 
@@ -160,6 +184,7 @@ v1.MapPaymentsEndpoints();
 v1.MapTicketsEndpoints();
 v1.MapNotificationsEndpoints();
 v1.MapAdminDashboardEndpoints();
+v1.MapAdminUsersEndpoints();
 v1.MapAdminAirportsEndpoints();
 v1.MapAdminAirlinesEndpoints();
 v1.MapAdminAircraftsEndpoints();
@@ -169,5 +194,7 @@ v1.MapFlightManagerDashboardEndpoints();
 v1.MapFlightManagerSchedulesEndpoints();
 
 app.MapHub<SeatHub>("/hubs/seats");
+app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard");
 
 app.Run();

@@ -19,7 +19,11 @@ public static class BookingMapping
         b.TotalAmount,
         b.Passengers.Count,
         b.Tickets.Count,
-        b.CreatedAt);
+        b.CreatedAt,
+        b.Payments.OrderByDescending(p => p.CreatedAt).FirstOrDefault()?.PaymentStatus,
+        b.Itinerary?.OriginAirport?.Code,
+        b.Itinerary?.DestinationAirport?.Code,
+        b.Itinerary?.DepartureTime);
 
     public static BookingSummaryDto ToSummary(this Booking b) => new(
         b.Id,
