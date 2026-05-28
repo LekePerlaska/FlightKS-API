@@ -194,5 +194,6 @@ v1.MapFlightManagerSchedulesEndpoints();
 
 app.MapHub<SeatHub>("/hubs/seats");
 app.MapHub<NotificationHub>("/hubs/notifications");
+app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard");
 
 app.Run();
