@@ -97,6 +97,9 @@ public class BookingService(AppDbContext db) : IBookingService
         var q = db.Bookings
             .Include(b => b.Passengers)
             .Include(b => b.Tickets)
+            .Include(b => b.Payments)
+            .Include(b => b.Itinerary).ThenInclude(i => i.OriginAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i.DestinationAirport)
             .AsQueryable();
         return asNoTracking ? q.AsNoTracking() : q;
     }
