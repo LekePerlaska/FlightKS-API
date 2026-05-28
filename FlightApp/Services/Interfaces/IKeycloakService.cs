@@ -1,3 +1,5 @@
+using FlightKS.Models.Dtos.Admin;
+
 namespace FlightKS.Services.Interfaces;
 
 public interface IKeycloakService
@@ -11,4 +13,12 @@ public interface IKeycloakService
 
     /// <summary>Revokes the user's session in Keycloak using their refresh token.</summary>
     Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> GetUserRolesAsync(string keycloakUserId, CancellationToken cancellationToken = default);
+
+    Task AssignUserRolesAsync(string keycloakUserId, IReadOnlyList<string> roleNames, CancellationToken cancellationToken = default);
+
+    Task SetUserEnabledAsync(string keycloakUserId, bool enabled, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AdminRoleDto>> GetRealmRolesAsync(CancellationToken cancellationToken = default);
 }

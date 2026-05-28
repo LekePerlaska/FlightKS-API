@@ -6,9 +6,7 @@ namespace FlightKS.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
-    public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<Airline> Airlines => Set<Airline>();
     public DbSet<Airport> Airports => Set<Airport>();
     public DbSet<Aircraft> Aircrafts => Set<Aircraft>();
@@ -38,9 +36,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         ConfigureEnums(modelBuilder);
 
-        ConfigureRole(modelBuilder);
         ConfigureUser(modelBuilder);
-        ConfigureUserRole(modelBuilder);
         ConfigureAirline(modelBuilder);
         ConfigureAirport(modelBuilder);
         ConfigureAircraft(modelBuilder);
@@ -79,18 +75,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.HasPostgresEnum<RefundStatus>();
     }
 
-    private static void ConfigureRole(ModelBuilder mb) =>
-        mb.Entity<Role>(e =>
-        {
-            e.HasKey(r => r.Id);
-            e.Property(r => r.Name).HasMaxLength(50).IsRequired();
-            e.HasIndex(r => r.Name).IsUnique();
-            e.HasData(
-                new Role { Id = 1, Name = "Admin" },
-                new Role { Id = 2, Name = "FlightManager" },
-                new Role { Id = 3, Name = "User" });
-        });
-
     private static void ConfigureUser(ModelBuilder mb) =>
         mb.Entity<User>(e =>
         {
@@ -108,20 +92,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(u => u.CreatedAt).HasDefaultValueSql("now()");
             e.Property(u => u.UpdatedAt).HasDefaultValueSql("now()");
             e.HasQueryFilter(u => u.DeletedAt == null);
-        });
-
-    private static void ConfigureUserRole(ModelBuilder mb) =>
-        mb.Entity<UserRole>(e =>
-        {
-            e.HasKey(ur => new { ur.UserId, ur.RoleId });
-            e.HasOne(ur => ur.User)
-                .WithMany(u => u.UserRoles)
-                .HasForeignKey(ur => ur.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(ur => ur.Role)
-                .WithMany(r => r.UserRoles)
-                .HasForeignKey(ur => ur.RoleId)
-                .OnDelete(DeleteBehavior.Restrict);
         });
 
     private static void ConfigureAirline(ModelBuilder mb) =>

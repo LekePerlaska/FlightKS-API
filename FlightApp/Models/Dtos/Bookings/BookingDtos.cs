@@ -24,7 +24,11 @@ public record BookingListItemDto(
     decimal TotalAmount,
     int PassengerCount,
     int TicketCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    PaymentStatus? PaymentStatus,
+    string? OriginCode,
+    string? DestinationCode,
+    DateTime? DepartureTime);
 
 public record BookingSummaryDto(
     Guid Id,

@@ -5,7 +5,7 @@ namespace FlightKS.Mappers;
 
 public static class UserMapping
 {
-    public static UserResponseDto ToResponse(this User user) => new(
+    public static UserResponseDto ToResponse(this User user, IReadOnlyList<string>? roles = null) => new(
         user.Id,
         user.Email,
         user.FullName,
@@ -16,7 +16,7 @@ public static class UserMapping
         user.IsActive,
         user.CreatedAt,
         user.UpdatedAt,
-        [.. user.UserRoles.Select(ur => ur.Role.Name)],
+        roles ?? [],
         [.. user.UploadedFiles
             .Where(file => file.RelatedEntityName == "UserPassportDocument")
             .OrderByDescending(file => file.CreatedAt)

@@ -7,8 +7,6 @@ namespace FlightKS.Services;
 
 public class UserService(AppDbContext db) : IUserService
 {
-    private const int UserRoleId = 3; // Seeded: Admin=1, FlightManager=2, User=3
-
     public async Task<User> CreateAsync(
         string keycloakUserId,
         string fullName,
@@ -37,26 +35,58 @@ public class UserService(AppDbContext db) : IUserService
         };
 
         db.Users.Add(user);
-        db.UserRoles.Add(new UserRole { User = user, RoleId = UserRoleId });
-
         await db.SaveChangesAsync(cancellationToken);
 
-        // Reload with roles populated for the response
         return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UploadedFiles)
+            .FirstAsync(u => u.Id == user.Id, cancellationToken);
+    }
+
+    public async Task<User> GetOrCreateAsync(
+        string keycloakUserId,
+        string email,
+        string fullName,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await db.Users.AsNoTracking()
+            .Include(u => u.UploadedFiles)
+            .FirstOrDefaultAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
+
+        if (existing is not null) return existing;
+
+        var user = new User
+        {
+            KeycloakUserId = keycloakUserId,
+            FullName = string.IsNullOrWhiteSpace(fullName) ? email : fullName,
+            Email = email,
+        };
+
+        db.Users.Add(user);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return await db.Users.AsNoTracking()
+                .Include(u => u.UploadedFiles)
+                .FirstAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
+        }
+
+        return await db.Users.AsNoTracking()
             .Include(u => u.UploadedFiles)
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }
 
     public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
     public Task<User?> GetByKeycloakIdAsync(string keycloakUserId, CancellationToken cancellationToken = default) =>
         db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstOrDefaultAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
 
@@ -81,8 +111,50 @@ public class UserService(AppDbContext db) : IUserService
 
         await db.SaveChangesAsync(cancellationToken);
         return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<User> Items, int Total)> GetAllForAdminAsync(
+        string? search,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = db.Users.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(u =>
+                u.FullName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
+        }
+
+        if (isActive.HasValue)
+            query = query.Where(u => u.IsActive == isActive.Value);
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
+
+    public async Task<User?> SetActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null) return null;
+
+        user.IsActive = isActive;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+        return user;
     }
 }
