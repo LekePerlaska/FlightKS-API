@@ -32,7 +32,7 @@ public static class AuthEndpoints
             currentUser.Email,
             currentUser.FullName,
             cancellationToken);
-        return TypedResults.Ok(user.ToResponse());
+        return TypedResults.Ok(user.ToResponse(currentUser.Roles));
     }
 
     private static async Task<IResult> Logout(
