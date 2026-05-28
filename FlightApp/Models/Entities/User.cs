@@ -15,7 +15,6 @@ public class User
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DeletedAt { get; set; }
 
-    public ICollection<UserRole> UserRoles { get; set; } = [];
     public ICollection<Booking> Bookings { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<UploadedFile> UploadedFiles { get; set; } = [];

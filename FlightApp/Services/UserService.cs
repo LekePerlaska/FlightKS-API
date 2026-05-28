@@ -7,8 +7,6 @@ namespace FlightKS.Services;
 
 public class UserService(AppDbContext db) : IUserService
 {
-    private const int UserRoleId = 3; // Seeded: Admin=1, FlightManager=2, User=3
-
     public async Task<User> CreateAsync(
         string keycloakUserId,
         string fullName,
@@ -37,13 +35,9 @@ public class UserService(AppDbContext db) : IUserService
         };
 
         db.Users.Add(user);
-        db.UserRoles.Add(new UserRole { User = user, RoleId = UserRoleId });
-
         await db.SaveChangesAsync(cancellationToken);
 
-        // Reload with roles populated for the response
         return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }
@@ -55,7 +49,6 @@ public class UserService(AppDbContext db) : IUserService
         CancellationToken cancellationToken = default)
     {
         var existing = await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstOrDefaultAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
 
@@ -69,7 +62,6 @@ public class UserService(AppDbContext db) : IUserService
         };
 
         db.Users.Add(user);
-        db.UserRoles.Add(new UserRole { User = user, RoleId = UserRoleId });
 
         try
         {
@@ -79,26 +71,22 @@ public class UserService(AppDbContext db) : IUserService
         {
             db.ChangeTracker.Clear();
             return await db.Users.AsNoTracking()
-                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
                 .Include(u => u.UploadedFiles)
                 .FirstAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
         }
 
         return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }
 
     public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
     public Task<User?> GetByKeycloakIdAsync(string keycloakUserId, CancellationToken cancellationToken = default) =>
         db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstOrDefaultAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
 
@@ -123,7 +111,6 @@ public class UserService(AppDbContext db) : IUserService
 
         await db.SaveChangesAsync(cancellationToken);
         return await db.Users.AsNoTracking()
-            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
             .Include(u => u.UploadedFiles)
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }

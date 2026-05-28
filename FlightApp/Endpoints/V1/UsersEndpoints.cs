@@ -37,7 +37,7 @@ public static class UsersEndpoints
             accessor.Email,
             accessor.FullName,
             cancellationToken);
-        return TypedResults.Ok(user.ToResponse());
+        return TypedResults.Ok(user.ToResponse(accessor.Roles));
     }
 
     private static async Task<IResult> UpdateMe(
@@ -53,7 +53,7 @@ public static class UsersEndpoints
             user.Id, dto.FullName, dto.PhoneNumber, dto.DateOfBirth,
             dto.PassportNumber, dto.Nationality, cancellationToken);
 
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToResponse());
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToResponse(accessor.Roles));
     }
 
     private static async Task<IResult> UploadMyDocument(
