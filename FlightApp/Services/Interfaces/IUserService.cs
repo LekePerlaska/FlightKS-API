@@ -32,4 +32,13 @@ public interface IUserService
         string? passportNumber = null,
         string? nationality = null,
         CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<User> Items, int Total)> GetAllForAdminAsync(
+        string? search,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<User?> SetActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default);
 }

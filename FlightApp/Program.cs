@@ -184,6 +184,7 @@ v1.MapPaymentsEndpoints();
 v1.MapTicketsEndpoints();
 v1.MapNotificationsEndpoints();
 v1.MapAdminDashboardEndpoints();
+v1.MapAdminUsersEndpoints();
 v1.MapAdminAirportsEndpoints();
 v1.MapAdminAirlinesEndpoints();
 v1.MapAdminAircraftsEndpoints();
