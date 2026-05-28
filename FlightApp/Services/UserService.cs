@@ -48,6 +48,48 @@ public class UserService(AppDbContext db) : IUserService
             .FirstAsync(u => u.Id == user.Id, cancellationToken);
     }
 
+    public async Task<User> GetOrCreateAsync(
+        string keycloakUserId,
+        string email,
+        string fullName,
+        CancellationToken cancellationToken = default)
+    {
+        var existing = await db.Users.AsNoTracking()
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UploadedFiles)
+            .FirstOrDefaultAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
+
+        if (existing is not null) return existing;
+
+        var user = new User
+        {
+            KeycloakUserId = keycloakUserId,
+            FullName = string.IsNullOrWhiteSpace(fullName) ? email : fullName,
+            Email = email,
+        };
+
+        db.Users.Add(user);
+        db.UserRoles.Add(new UserRole { User = user, RoleId = UserRoleId });
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return await db.Users.AsNoTracking()
+                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+                .Include(u => u.UploadedFiles)
+                .FirstAsync(u => u.KeycloakUserId == keycloakUserId, cancellationToken);
+        }
+
+        return await db.Users.AsNoTracking()
+            .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .Include(u => u.UploadedFiles)
+            .FirstAsync(u => u.Id == user.Id, cancellationToken);
+    }
+
     public Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
         db.Users.AsNoTracking()
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)

@@ -14,6 +14,12 @@ public interface IUserService
         string? nationality = null,
         CancellationToken cancellationToken = default);
 
+    Task<User> GetOrCreateAsync(
+        string keycloakUserId,
+        string email,
+        string fullName,
+        CancellationToken cancellationToken = default);
+
     Task<User?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<User?> GetByKeycloakIdAsync(string keycloakUserId, CancellationToken cancellationToken = default);
