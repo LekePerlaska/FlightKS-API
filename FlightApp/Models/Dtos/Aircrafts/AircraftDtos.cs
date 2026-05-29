@@ -1,3 +1,5 @@
+using FlightKS.Enums;
+
 namespace FlightKS.Models.Dtos.Aircrafts;
 
 public record AircraftDto(
@@ -23,3 +25,20 @@ public record AircraftUpdateDto(
     string? RegistrationNumber,
     int? TotalSeats,
     bool? IsActive);
+
+public record SeatAdminDto(
+    Guid Id,
+    string SeatNumber,
+    SeatClass SeatClass,
+    bool IsWindow,
+    bool IsAisle,
+    bool ExtraLegroom);
+
+public record SeatBatchCreateDto(IReadOnlyList<SeatCreateItemDto> Seats);
+
+public record SeatCreateItemDto(
+    string SeatNumber,
+    SeatClass SeatClass,
+    bool IsWindow,
+    bool IsAisle,
+    bool ExtraLegroom);
