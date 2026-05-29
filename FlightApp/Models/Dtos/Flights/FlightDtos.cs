@@ -27,6 +27,7 @@ public record FlightAdminListItemDto(
     string FlightNumber,
     Guid AirlineId,
     string AirlineName,
+    string AirlineCode,
     AirportDto Origin,
     AirportDto Destination,
     decimal BasePrice,
