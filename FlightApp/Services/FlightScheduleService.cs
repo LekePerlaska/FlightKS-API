@@ -44,7 +44,10 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
 
     public async Task<IEnumerable<FlightSchedule>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
         await db.FlightSchedules.IgnoreQueryFilters().AsNoTracking()
-            .Include(s => s.Flight)
+            .Include(s => s.Flight).ThenInclude(f => f.Airline)
+            .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Include(s => s.Aircraft)
             .OrderByDescending(s => s.DepartureTime)
             .ToListAsync(cancellationToken);
 
@@ -72,12 +75,23 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         };
         db.FlightSchedules.Add(schedule);
         await db.SaveChangesAsync(cancellationToken);
-        return schedule;
+
+        return await db.FlightSchedules
+            .Include(s => s.Flight).ThenInclude(f => f.Airline)
+            .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Include(s => s.Aircraft)
+            .FirstAsync(s => s.Id == schedule.Id, cancellationToken);
     }
 
-    public async Task<FlightSchedule?> UpdateAsync(Guid scheduleId, FlightScheduleStatus? status, string? gate, string? delayReason, DateTime? departureTime, DateTime? arrivalTime, CancellationToken cancellationToken = default)
+    public async Task<FlightSchedule?> UpdateAsync(Guid scheduleId, FlightScheduleStatus? status, string? gate, string? delayReason, DateTime? departureTime, DateTime? arrivalTime, decimal? currentPrice, int? availableSeats, CancellationToken cancellationToken = default)
     {
-        var schedule = await db.FlightSchedules.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
+        var schedule = await db.FlightSchedules.IgnoreQueryFilters()
+            .Include(s => s.Flight).ThenInclude(f => f.Airline)
+            .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Include(s => s.Aircraft)
+            .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
         if (schedule is null) return null;
 
         if (status is not null) schedule.Status = status.Value;
@@ -85,10 +99,50 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (delayReason is not null) schedule.DelayReason = delayReason;
         if (departureTime is not null) schedule.DepartureTime = departureTime.Value;
         if (arrivalTime is not null) schedule.ArrivalTime = arrivalTime.Value;
+        if (currentPrice is not null) schedule.CurrentPrice = currentPrice.Value;
+        if (availableSeats is not null) schedule.AvailableSeats = availableSeats.Value;
         schedule.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
         return schedule;
+    }
+
+    public async Task<IEnumerable<FlightSeat>> GenerateFlightSeatsAsync(Guid scheduleId, CancellationToken cancellationToken = default)
+    {
+        var schedule = await db.FlightSchedules.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
+        if (schedule is null) throw new KeyNotFoundException($"Schedule '{scheduleId}' not found.");
+        if (schedule.AircraftId == Guid.Empty)
+            throw new InvalidOperationException("Schedule has no aircraft assigned.");
+
+        var seats = await db.Seats.AsNoTracking()
+            .Where(s => s.AircraftId == schedule.AircraftId)
+            .ToListAsync(cancellationToken);
+        if (seats.Count == 0)
+            throw new InvalidOperationException("The assigned aircraft has no seats. Generate seats for the aircraft first.");
+
+        var existing = await db.FlightSeats
+            .Where(fs => fs.FlightScheduleId == scheduleId)
+            .ToListAsync(cancellationToken);
+        db.FlightSeats.RemoveRange(existing);
+
+        var flightSeats = seats.Select(seat => new FlightSeat
+        {
+            FlightScheduleId = scheduleId,
+            SeatId = seat.Id,
+            Status = FlightSeatStatus.Available,
+            Price = schedule.CurrentPrice,
+        }).ToList();
+
+        db.FlightSeats.AddRange(flightSeats);
+        schedule.AvailableSeats = flightSeats.Count;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return await db.FlightSeats.AsNoTracking()
+            .Include(fs => fs.Seat)
+            .Where(fs => fs.FlightScheduleId == scheduleId)
+            .OrderBy(fs => fs.Seat.SeatNumber)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(Guid scheduleId, CancellationToken cancellationToken = default)

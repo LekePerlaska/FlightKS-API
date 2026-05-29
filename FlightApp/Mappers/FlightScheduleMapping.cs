@@ -28,12 +28,24 @@ public static class FlightScheduleMapping
         s.Id,
         s.FlightId,
         s.Flight.FlightNumber,
+        s.Flight.Airline?.Name ?? string.Empty,
+        s.Flight.Airline?.Code ?? string.Empty,
+        s.Flight.OriginAirport?.Code ?? string.Empty,
+        s.Flight.OriginAirport?.City ?? string.Empty,
+        s.Flight.DestinationAirport?.Code ?? string.Empty,
+        s.Flight.DestinationAirport?.City ?? string.Empty,
+        s.AircraftId,
+        s.Aircraft?.Model,
         s.DepartureTime,
         s.ArrivalTime,
+        s.Flight.DurationMinutes,
         s.Status,
         s.AvailableSeats,
         s.CurrentPrice,
-        s.Gate);
+        s.Gate,
+        s.DelayReason,
+        s.CreatedAt,
+        s.UpdatedAt);
 
     public static FlightManagerScheduleListItemDto ToManagerListItem(this FlightSchedule s) => new(
         s.Id,
