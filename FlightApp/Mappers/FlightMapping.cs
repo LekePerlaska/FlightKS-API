@@ -23,6 +23,7 @@ public static class FlightMapping
         f.FlightNumber,
         f.AirlineId,
         f.Airline?.Name ?? string.Empty,
+        f.Airline?.Code ?? string.Empty,
         f.OriginAirport.ToDto(),
         f.DestinationAirport.ToDto(),
         f.BasePrice,

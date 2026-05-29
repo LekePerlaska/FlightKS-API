@@ -12,7 +12,10 @@ public static class AdminFlightsEndpoints
         var group = app.MapGroup("/admin/flights").WithTags("AdminFlights").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetFlights");
+        group.MapGet("/{id:guid}", GetById).WithName("AdminGetFlightById");
         group.MapPost("/", Create).WithName("AdminCreateFlight");
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlight");
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleFlightStatus");
 
         return app;
     }
@@ -21,6 +24,12 @@ public static class AdminFlightsEndpoints
     {
         var list = await flights.GetAllForAdminAsync(cancellationToken);
         return TypedResults.Ok(list.Select(f => f.ToAdminListItem()));
+    }
+
+    private static async Task<IResult> GetById(Guid id, IFlightService flights, CancellationToken cancellationToken)
+    {
+        var flight = await flights.GetByIdAsync(id, cancellationToken);
+        return flight is null ? TypedResults.NotFound() : TypedResults.Ok(flight.ToAdminListItem());
     }
 
     private static async Task<IResult> Create(FlightCreateDto dto, IFlightService flights, CancellationToken cancellationToken)
@@ -37,4 +46,26 @@ public static class AdminFlightsEndpoints
             return TypedResults.Conflict(new { error = ex.Message });
         }
     }
+
+    private static async Task<IResult> Update(Guid id, FlightUpdateDto dto, IFlightService flights, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await flights.UpdateAsync(
+                id, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
+                dto.BasePrice, dto.DurationMinutes, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> ToggleStatus(Guid id, FlightUpdateDto dto, IFlightService flights, CancellationToken cancellationToken)
+    {
+        var updated = await flights.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+    }
+
 }
