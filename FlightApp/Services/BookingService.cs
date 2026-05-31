@@ -92,6 +92,17 @@ public class BookingService(AppDbContext db) : IBookingService
         return true;
     }
 
+    public async Task<IEnumerable<Booking>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
+        await LoadAdmin(asNoTracking: true)
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+    public Task<Booking?> GetDetailForAdminAsync(Guid bookingId, CancellationToken cancellationToken = default) =>
+        LoadDetailed(asNoTracking: true)
+            .Include(b => b.Payments)
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
+
     private IQueryable<Booking> Load(bool asNoTracking)
     {
         var q = db.Bookings
@@ -114,6 +125,19 @@ public class BookingService(AppDbContext db) : IBookingService
             .Include(b => b.Tickets).ThenInclude(t => t.FlightSeat).ThenInclude(fs => fs!.Seat)
             .Include(b => b.BookingBaggage).ThenInclude(bb => bb.BaggageOption)
             .Include(b => b.Payments)
+            .AsQueryable();
+        return asNoTracking ? q.AsNoTracking() : q;
+    }
+
+    private IQueryable<Booking> LoadAdmin(bool asNoTracking)
+    {
+        var q = db.Bookings
+            .Include(b => b.User)
+            .Include(b => b.Passengers)
+            .Include(b => b.Tickets)
+            .Include(b => b.Payments)
+            .Include(b => b.Itinerary).ThenInclude(i => i.OriginAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i.DestinationAirport)
             .AsQueryable();
         return asNoTracking ? q.AsNoTracking() : q;
     }

@@ -94,7 +94,9 @@ public static class ItinerariesEndpoints
 
         if (segment is null) return TypedResults.NotFound();
 
+        var schedule = await schedules.GetByIdAsync(segment.FlightScheduleId, cancellationToken);
+        var price = schedule?.CurrentPrice ?? 0;
         var seats = await schedules.GetSeatsAsync(segment.FlightScheduleId, cancellationToken);
-        return TypedResults.Ok(seats.Select(s => s.ToDto()));
+        return TypedResults.Ok(seats.Select(s => s.ToScheduleSeatDto(price)));
     }
 }

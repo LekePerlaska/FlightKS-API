@@ -40,6 +40,24 @@ public record BookingSummaryDto(
     IReadOnlyList<TicketResponseDto> Tickets,
     IReadOnlyList<BookingBaggageResponseDto> Baggage);
 
+public record AdminBookingListItemDto(
+    Guid Id,
+    string BookingReference,
+    BookingStatus Status,
+    decimal TotalAmount,
+    int PassengerCount,
+    int TicketCount,
+    DateTime CreatedAt,
+    PaymentStatus? PaymentStatus,
+    Guid? LatestPaymentId,
+    string? OriginCode,
+    string? DestinationCode,
+    DateTime? DepartureTime,
+    string UserFullName,
+    string UserEmail);
+
+public record BookingStatusUpdateDto(BookingStatus Status);
+
 public record BookingPriceSummaryDto(
     decimal SeatsTotal,
     decimal BaggageTotal,

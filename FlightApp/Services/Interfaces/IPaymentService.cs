@@ -14,4 +14,5 @@ public interface IPaymentService
         CancellationToken cancellationToken = default);
 
     Task<Payment?> GetByIdAsync(Guid paymentId, Guid? ownerUserId = null, CancellationToken cancellationToken = default);
+    Task<PaymentRefund> CreateRefundAsync(Guid paymentId, decimal amount, string reason, CancellationToken cancellationToken = default);
 }
