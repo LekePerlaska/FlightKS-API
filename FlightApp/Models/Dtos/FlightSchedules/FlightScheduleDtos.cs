@@ -50,8 +50,7 @@ public record FlightScheduleCreateDto(
     Guid AircraftId,
     DateTime DepartureTime,
     DateTime ArrivalTime,
-    decimal CurrentPrice,
-    int AvailableSeats,
+    decimal? CurrentPrice,
     string? Gate);
 
 public record FlightScheduleStatusUpdateDto(
@@ -86,3 +85,12 @@ public record FlightSeatDto(
     FlightSeatStatus Status,
     decimal Price,
     DateTime? ReservedUntil);
+
+public record ScheduleSeatDto(
+    Guid Id,
+    string SeatNumber,
+    SeatClass SeatClass,
+    bool IsWindow,
+    bool IsAisle,
+    bool ExtraLegroom,
+    decimal Price);

@@ -27,11 +27,13 @@ public class AircraftService(AppDbContext db) : IAircraftService
 
     public async Task<Aircraft> CreateAsync(Guid airlineId, string model, string registrationNumber, int totalSeats, CancellationToken cancellationToken = default)
     {
-        var airline = await db.Airlines.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == airlineId, cancellationToken)
+        registrationNumber = registrationNumber.Trim().ToUpperInvariant();
+
+        var airline = await db.Airlines.FirstOrDefaultAsync(a => a.Id == airlineId && a.IsActive, cancellationToken)
             ?? throw new InvalidOperationException($"Airline '{airlineId}' not found.");
 
         var regExists = await db.Aircrafts.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(a => a.RegistrationNumber == registrationNumber, cancellationToken);
+            .AnyAsync(a => a.RegistrationNumber.ToLower() == registrationNumber.ToLower(), cancellationToken);
         if (regExists) throw new InvalidOperationException($"Aircraft registration '{registrationNumber}' is already in use.");
 
         var aircraft = new Aircraft
@@ -54,6 +56,22 @@ public class AircraftService(AppDbContext db) : IAircraftService
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (aircraft is null) return null;
 
+        registrationNumber = registrationNumber?.Trim().ToUpperInvariant();
+
+        if (airlineId is not null)
+        {
+            var airlineExists = await db.Airlines.AsNoTracking()
+                .AnyAsync(a => a.Id == airlineId && a.IsActive, cancellationToken);
+            if (!airlineExists) throw new InvalidOperationException($"Active airline '{airlineId}' not found.");
+        }
+
+        if (registrationNumber is not null)
+        {
+            var regExists = await db.Aircrafts.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(a => a.Id != id && a.RegistrationNumber.ToLower() == registrationNumber.ToLower(), cancellationToken);
+            if (regExists) throw new InvalidOperationException($"Aircraft registration '{registrationNumber}' is already in use.");
+        }
+
         if (airlineId is not null) aircraft.AirlineId = airlineId.Value;
         if (model is not null) aircraft.Model = model;
         if (registrationNumber is not null) aircraft.RegistrationNumber = registrationNumber;
@@ -62,6 +80,10 @@ public class AircraftService(AppDbContext db) : IAircraftService
         aircraft.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
+        if (airlineId is not null)
+        {
+            await db.Entry(aircraft).Reference(a => a.Airline).LoadAsync(cancellationToken);
+        }
         return aircraft;
     }
 
@@ -69,6 +91,11 @@ public class AircraftService(AppDbContext db) : IAircraftService
     {
         var aircraft = await db.Aircrafts.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (aircraft is null) return false;
+
+        var isAssignedToSchedule = await db.FlightSchedules.AsNoTracking()
+            .AnyAsync(s => s.AircraftId == id, cancellationToken);
+        if (isAssignedToSchedule)
+            throw new InvalidOperationException("Cannot delete an aircraft that is assigned to flight schedules.");
 
         aircraft.DeletedAt = DateTime.UtcNow;
         aircraft.IsActive = false;
@@ -137,9 +164,17 @@ public class AircraftService(AppDbContext db) : IAircraftService
             generatedSeats.Add(newSeat);
         }
 
-        // Keep TotalSeats in sync with the actual generated seat count
         aircraft.TotalSeats = generatedSeats.Count;
         aircraft.UpdatedAt = now;
+
+        var schedules = await db.FlightSchedules
+            .Where(s => s.AircraftId == aircraftId && s.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var schedule in schedules)
+        {
+            schedule.AvailableSeats = generatedSeats.Count;
+            schedule.UpdatedAt = now;
+        }
 
         await db.SaveChangesAsync(cancellationToken);
         return generatedSeats;

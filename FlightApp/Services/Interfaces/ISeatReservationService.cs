@@ -12,7 +12,8 @@ public interface ISeatReservationService
         Guid bookingId,
         Guid ownerUserId,
         Guid passengerId,
-        Guid flightSeatId,
+        Guid seatId,
+        Guid itinerarySegmentId,
         TimeSpan? holdFor = null,
         CancellationToken cancellationToken = default);
 

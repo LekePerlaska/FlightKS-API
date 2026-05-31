@@ -33,7 +33,9 @@ public static class FlightSchedulesEndpoints
 
     private static async Task<IResult> GetSeats(Guid scheduleId, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
+        var schedule = await schedules.GetByIdAsync(scheduleId, cancellationToken);
+        if (schedule is null) return TypedResults.NotFound();
         var seats = await schedules.GetSeatsAsync(scheduleId, cancellationToken);
-        return TypedResults.Ok(seats.Select(s => s.ToDto()));
+        return TypedResults.Ok(seats.Select(s => s.ToScheduleSeatDto(schedule.CurrentPrice)));
     }
 }

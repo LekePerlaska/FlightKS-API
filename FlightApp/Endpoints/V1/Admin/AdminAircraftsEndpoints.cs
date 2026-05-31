@@ -43,20 +43,41 @@ public static class AdminAircraftsEndpoints
 
     private static async Task<IResult> Update(Guid id, AircraftUpdateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        var updated = await aircrafts.UpdateAsync(id, dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
+        try
+        {
+            var updated = await aircrafts.UpdateAsync(id, dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AircraftUpdateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        var updated = await aircrafts.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
+        try
+        {
+            var updated = await aircrafts.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> Delete(Guid id, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        var deleted = await aircrafts.DeleteAsync(id, cancellationToken);
-        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
+        try
+        {
+            var deleted = await aircrafts.DeleteAsync(id, cancellationToken);
+            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> GetSeats(Guid id, IAircraftService aircrafts, CancellationToken cancellationToken)

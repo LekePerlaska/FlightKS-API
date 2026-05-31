@@ -51,14 +51,28 @@ public static class AdminAirportsEndpoints
         if (dto.TimeZone is not null && !IsValidIanaTimezone(dto.TimeZone))
             return TypedResults.BadRequest(new { error = "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London." });
 
-        var updated = await airports.UpdateAsync(id, dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        try
+        {
+            var updated = await airports.UpdateAsync(id, dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AirportUpdateDto dto, IAirportService airports, CancellationToken cancellationToken)
     {
-        var updated = await airports.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        try
+        {
+            var updated = await airports.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static bool IsValidIanaTimezone(string id) =>
@@ -66,8 +80,15 @@ public static class AdminAirportsEndpoints
 
     private static async Task<IResult> Delete(Guid id, IAirportService airports, CancellationToken cancellationToken)
     {
-        var deleted = await airports.DeleteAsync(id, cancellationToken);
-        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
+        try
+        {
+            var deleted = await airports.DeleteAsync(id, cancellationToken);
+            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 }
 

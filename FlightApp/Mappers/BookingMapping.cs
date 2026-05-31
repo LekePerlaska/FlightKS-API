@@ -46,6 +46,26 @@ public static class BookingMapping
         [.. b.BookingBaggage.Select(bb => bb.ToResponse())],
         [.. b.Payments.Select(p => p.ToResponse())]);
 
+    public static AdminBookingListItemDto ToAdminListItem(this Booking b)
+    {
+        var latest = b.Payments.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+        return new(
+            b.Id,
+            b.BookingReference,
+            b.Status,
+            b.TotalAmount,
+            b.Passengers.Count,
+            b.Tickets.Count,
+            b.CreatedAt,
+            latest?.PaymentStatus,
+            latest?.Id,
+            b.Itinerary?.OriginAirport?.Code,
+            b.Itinerary?.DestinationAirport?.Code,
+            b.Itinerary?.DepartureTime,
+            b.User?.FullName ?? string.Empty,
+            b.User?.Email ?? string.Empty);
+    }
+
     public static PassengerResponseDto ToResponse(this Passenger p) => new(
         p.Id, p.BookingId, p.FirstName, p.LastName, p.DateOfBirth,
         p.Gender, p.PassportNumber, p.Nationality, p.CreatedAt);

@@ -41,13 +41,12 @@ public record FlightCreateDto(
     string FlightNumber,
     Guid OriginAirportId,
     Guid DestinationAirportId,
-    decimal BasePrice,
-    int DurationMinutes);
+    decimal BasePrice);
 
 public record FlightUpdateDto(
+    Guid? AirlineId,
     string? FlightNumber,
     Guid? OriginAirportId,
     Guid? DestinationAirportId,
     decimal? BasePrice,
-    int? DurationMinutes,
     bool? IsActive);

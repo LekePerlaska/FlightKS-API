@@ -38,9 +38,16 @@ public class AirportService(AppDbContext db) : IAirportService
 
     public async Task<Airport> CreateAsync(string code, string name, string city, string country, string timeZone, CancellationToken cancellationToken = default)
     {
+        code = code.Trim().ToUpperInvariant();
+        name = name.Trim();
+
         var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(a => a.Code == code, cancellationToken);
+            .AnyAsync(a => a.Code.ToLower() == code.ToLower(), cancellationToken);
         if (codeExists) throw new InvalidOperationException($"Airport code '{code}' is already in use.");
+
+        var nameExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(a => a.Name.ToLower() == name.ToLower(), cancellationToken);
+        if (nameExists) throw new InvalidOperationException($"Airport name '{name}' is already in use.");
 
         var airport = new Airport { Code = code, Name = name, City = city, Country = country, TimeZone = timeZone };
         db.Airports.Add(airport);
@@ -52,6 +59,23 @@ public class AirportService(AppDbContext db) : IAirportService
     {
         var airport = await db.Airports.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (airport is null) return null;
+
+        code = code?.Trim().ToUpperInvariant();
+        name = name?.Trim();
+
+        if (code is not null)
+        {
+            var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(a => a.Id != id && a.Code.ToLower() == code.ToLower(), cancellationToken);
+            if (codeExists) throw new InvalidOperationException($"Airport code '{code}' is already in use.");
+        }
+
+        if (name is not null)
+        {
+            var nameExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(a => a.Id != id && a.Name.ToLower() == name.ToLower(), cancellationToken);
+            if (nameExists) throw new InvalidOperationException($"Airport name '{name}' is already in use.");
+        }
 
         if (code is not null) airport.Code = code;
         if (name is not null) airport.Name = name;
@@ -69,6 +93,13 @@ public class AirportService(AppDbContext db) : IAirportService
     {
         var airport = await db.Airports.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (airport is null) return false;
+
+        var isUsedByFlight = await db.Flights.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(f => f.OriginAirportId == id || f.DestinationAirportId == id, cancellationToken);
+        var isUsedByItinerary = await db.Itineraries.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(i => i.OriginAirportId == id || i.DestinationAirportId == id, cancellationToken);
+        if (isUsedByFlight || isUsedByItinerary)
+            throw new InvalidOperationException("Cannot delete an airport that is used by flights or itineraries. Deactivate it instead.");
 
         db.Airports.Remove(airport);
         await db.SaveChangesAsync(cancellationToken);

@@ -4,7 +4,8 @@ namespace FlightKS.Models.Dtos.SeatReservations;
 
 public record SeatReservationCreateDto(
     Guid PassengerId,
-    Guid FlightSeatId,
+    Guid SeatId,
+    Guid ItinerarySegmentId,
     TimeSpan? HoldFor);
 
 public record SeatReservationResponseDto(
