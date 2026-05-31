@@ -9,7 +9,7 @@ public static class FlightMapping
         s.Id,
         s.FlightId,
         s.Flight.FlightNumber,
-        s.Flight.Airline.ToDto(),
+        s.Flight.Airline?.ToDto() ?? throw new InvalidOperationException($"Flight {s.Flight.FlightNumber} has no active airline."),
         s.Flight.OriginAirport.ToDto(),
         s.Flight.DestinationAirport.ToDto(),
         s.DepartureTime,

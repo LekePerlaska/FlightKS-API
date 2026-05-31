@@ -24,6 +24,7 @@ public class FlightService(AppDbContext db) : IFlightService
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft)
             .Where(s =>
+                s.Flight.IsActive &&
                 s.Flight.OriginAirportId == originAirportId &&
                 s.Flight.DestinationAirportId == destinationAirportId &&
                 s.DepartureTime >= dayStart &&
@@ -47,7 +48,7 @@ public class FlightService(AppDbContext db) : IFlightService
             .Include(s => s.Flight).ThenInclude(f => f.Airline)
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
-            .Where(s => s.Status == FlightScheduleStatus.Scheduled && s.DepartureTime > DateTime.UtcNow)
+            .Where(s => s.Flight.IsActive && s.Status == FlightScheduleStatus.Scheduled && s.DepartureTime > DateTime.UtcNow)
             .OrderBy(s => s.CurrentPrice)
             .Take(limit)
             .ToListAsync(cancellationToken);

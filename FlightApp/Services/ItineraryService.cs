@@ -24,6 +24,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 i.DepartureTime >= dayStart &&
                 i.DepartureTime <= dayEnd &&
                 i.IsActive &&
+                i.Segments.All(s => s.FlightSchedule.Flight.IsActive) &&
                 !db.ItinerarySegments.Any(s =>
                     s.ItineraryId == i.Id &&
                     s.FlightSchedule.AvailableSeats < passengers))
@@ -39,7 +40,10 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         int limit = 4,
         CancellationToken cancellationToken = default) =>
         await LoadFull(asNoTracking: true)
-            .Where(i => i.IsActive && i.DepartureTime > DateTime.UtcNow)
+            .Where(i =>
+                i.IsActive &&
+                i.DepartureTime > DateTime.UtcNow &&
+                i.Segments.All(s => s.FlightSchedule.Flight.IsActive))
             .OrderBy(i => i.TotalPrice)
             .Take(limit)
             .ToListAsync(cancellationToken);
@@ -64,6 +68,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 .ThenInclude(s => s.FlightSchedule)
                     .ThenInclude(fs => fs.Flight)
                         .ThenInclude(f => f.Airline)
+                            .ThenInclude(a => a.LogoFile)
             .Include(i => i.Segments)
                 .ThenInclude(s => s.FlightSchedule)
                     .ThenInclude(fs => fs.Flight)
