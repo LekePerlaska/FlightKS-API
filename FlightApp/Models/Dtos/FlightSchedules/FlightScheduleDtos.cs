@@ -69,11 +69,6 @@ public record FlightScheduleUpdateDto(
     decimal? CurrentPrice,
     int? AvailableSeats);
 
-public record SeatSummaryDto(
-    int Total,
-    int Available,
-    Dictionary<SeatClass, int> AvailableByClass);
-
 public record FlightSeatDto(
     Guid Id,
     Guid SeatId,
