@@ -59,10 +59,14 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (arrivalTime <= departureTime)
             throw new InvalidOperationException("Arrival time must be after departure time.");
 
-        // Flight is tracked so the route's typical duration can be seeded from its first schedule.
         var flight = await db.Flights
             .FirstOrDefaultAsync(f => f.Id == flightId && f.IsActive, cancellationToken)
             ?? throw new InvalidOperationException($"Active flight '{flightId}' not found.");
+
+        var airlineIsActive = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(a => a.Id == flight.AirlineId && a.IsActive && a.DeletedAt == null, cancellationToken);
+        if (!airlineIsActive)
+            throw new InvalidOperationException("Cannot schedule a flight for a disabled airline.");
 
         var aircraft = await db.Aircrafts.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == aircraftId && a.IsActive, cancellationToken)
@@ -71,12 +75,12 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (aircraft.AirlineId != flight.AirlineId)
             throw new InvalidOperationException("Aircraft must belong to the same airline as the flight.");
 
-        // Price falls back to the flight's base fare; a per-departure override may still be supplied.
         var effectivePrice = currentPrice ?? flight.BasePrice;
         if (effectivePrice <= 0)
             throw new InvalidOperationException("Current price must be greater than zero.");
 
         await EnsureAircraftIsFreeAsync(aircraftId, departureTime, arrivalTime, excludeScheduleId: null, cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var schedule = new FlightSchedule
         {
@@ -91,7 +95,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         };
         db.FlightSchedules.Add(schedule);
 
-        // Seed the route's typical duration the first time it is scheduled.
         if (flight.DurationMinutes <= 0)
         {
             flight.DurationMinutes = DurationMinutes(departureTime, arrivalTime);
@@ -102,6 +105,7 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
 
         await CreateDirectItineraryAsync(schedule, flight, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await db.FlightSchedules
             .Include(s => s.Flight).ThenInclude(f => f.Airline)
@@ -131,7 +135,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (currentPrice is <= 0)
             throw new InvalidOperationException("Current price must be greater than zero.");
 
-        // If the operating window moved, make sure the aircraft isn't now double-booked.
         if (departureTime is not null || arrivalTime is not null)
             await EnsureAircraftIsFreeAsync(schedule.AircraftId, nextDeparture, nextArrival, excludeScheduleId: scheduleId, cancellationToken);
 
@@ -185,7 +188,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         return true;
     }
 
-    // TODO: filter by FlightManager assignment once that relationship is modelled. For now returns all schedules.
     public async Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default) =>
         await db.FlightSchedules.AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
@@ -254,7 +256,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         }
     }
 
-    // An aircraft can only be in one place at a time — reject any overlapping active schedule.
     private async Task EnsureAircraftIsFreeAsync(Guid aircraftId, DateTime departure, DateTime arrival, Guid? excludeScheduleId, CancellationToken cancellationToken)
     {
         var clash = await db.FlightSchedules.AsNoTracking()
