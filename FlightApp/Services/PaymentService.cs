@@ -59,4 +59,39 @@ public class PaymentService(AppDbContext db) : IPaymentService
         if (ownerUserId is { } uid) q = q.Where(p => p.Booking.UserId == uid);
         return await q.FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<PaymentRefund> CreateRefundAsync(Guid paymentId, decimal amount, string reason, CancellationToken cancellationToken = default)
+    {
+        var payment = await db.Payments
+            .Include(p => p.Booking)
+            .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Payment '{paymentId}' not found.");
+
+        if (payment.PaymentStatus == PaymentStatus.Refunded)
+            throw new InvalidOperationException("Payment has already been refunded.");
+
+        if (payment.PaymentStatus != PaymentStatus.Completed)
+            throw new InvalidOperationException("Only completed payments can be refunded.");
+
+        var refund = new PaymentRefund
+        {
+            PaymentId = paymentId,
+            Amount = amount,
+            Reason = reason,
+            RefundStatus = RefundStatus.Completed,
+        };
+        db.PaymentRefunds.Add(refund);
+
+        payment.PaymentStatus = PaymentStatus.Refunded;
+        payment.UpdatedAt = DateTime.UtcNow;
+
+        if (payment.Booking is not null)
+        {
+            payment.Booking.Status = BookingStatus.Refunded;
+            payment.Booking.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return refund;
+    }
 }

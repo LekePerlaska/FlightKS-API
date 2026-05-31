@@ -15,4 +15,12 @@ public static class AircraftMapping
         a.IsActive,
         a.CreatedAt,
         a.UpdatedAt);
+
+    public static SeatAdminDto ToAdminDto(this Seat s) => new(
+        s.Id,
+        s.SeatNumber,
+        s.SeatClass,
+        s.IsWindow,
+        s.IsAisle,
+        s.ExtraLegroom);
 }

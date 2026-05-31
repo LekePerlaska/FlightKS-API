@@ -32,9 +32,16 @@ public class AirlineService(AppDbContext db) : IAirlineService
 
     public async Task<Airline> CreateAsync(string code, string name, string country, Guid? logoFileId, CancellationToken cancellationToken = default)
     {
+        code = code.Trim().ToUpperInvariant();
+        name = name.Trim();
+
         var codeExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
-            .AnyAsync(a => a.Code == code, cancellationToken);
+            .AnyAsync(a => a.Code.ToLower() == code.ToLower(), cancellationToken);
         if (codeExists) throw new InvalidOperationException($"Airline code '{code}' is already in use.");
+
+        var nameExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
+            .AnyAsync(a => a.Name.ToLower() == name.ToLower(), cancellationToken);
+        if (nameExists) throw new InvalidOperationException($"Airline name '{name}' is already in use.");
 
         var airline = new Airline { Code = code, Name = name, Country = country, LogoFileId = logoFileId };
         db.Airlines.Add(airline);
@@ -48,6 +55,23 @@ public class AirlineService(AppDbContext db) : IAirlineService
     {
         var airline = await db.Airlines.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (airline is null) return null;
+
+        code = code?.Trim().ToUpperInvariant();
+        name = name?.Trim();
+
+        if (code is not null)
+        {
+            var codeExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(a => a.Id != id && a.Code.ToLower() == code.ToLower(), cancellationToken);
+            if (codeExists) throw new InvalidOperationException($"Airline code '{code}' is already in use.");
+        }
+
+        if (name is not null)
+        {
+            var nameExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(a => a.Id != id && a.Name.ToLower() == name.ToLower(), cancellationToken);
+            if (nameExists) throw new InvalidOperationException($"Airline name '{name}' is already in use.");
+        }
 
         if (code is not null) airline.Code = code;
         if (name is not null) airline.Name = name;

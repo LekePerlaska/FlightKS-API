@@ -12,7 +12,12 @@ public static class AdminFlightSchedulesEndpoints
         var group = app.MapGroup("/admin/flight-schedules").WithTags("AdminFlightSchedules").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetFlightSchedules");
+        group.MapGet("/{id:guid}", GetById).WithName("AdminGetFlightScheduleById");
         group.MapPost("/", Create).WithName("AdminCreateFlightSchedule");
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlightSchedule");
+        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateFlightScheduleStatus");
+        group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteFlightSchedule");
+        group.MapGet("/{id:guid}/seats", GetSeats).WithName("AdminGetFlightScheduleSeats");
 
         return app;
     }
@@ -23,18 +28,73 @@ public static class AdminFlightSchedulesEndpoints
         return TypedResults.Ok(list.Select(s => s.ToAdminListItem()));
     }
 
+    private static async Task<IResult> GetById(Guid id, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    {
+        var schedule = await schedules.GetByIdAsync(id, cancellationToken);
+        return schedule is null ? TypedResults.NotFound() : TypedResults.Ok(schedule.ToDetail());
+    }
+
     private static async Task<IResult> Create(FlightScheduleCreateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
         try
         {
             var schedule = await schedules.CreateAsync(
                 dto.FlightId, dto.AircraftId, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.AvailableSeats, dto.Gate, cancellationToken);
+                dto.CurrentPrice, dto.Gate, cancellationToken);
             return TypedResults.Created($"/api/v1/admin/flight-schedules/{schedule.Id}", schedule.ToAdminListItem());
         }
         catch (InvalidOperationException ex)
         {
             return TypedResults.BadRequest(new { error = ex.Message });
         }
+    }
+
+    private static async Task<IResult> Update(Guid id, FlightScheduleUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await schedules.UpdateAsync(
+                id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
+                dto.CurrentPrice, dto.AvailableSeats, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> UpdateStatus(Guid id, FlightScheduleUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var updated = await schedules.UpdateAsync(
+                id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
+                dto.CurrentPrice, dto.AvailableSeats, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> Delete(Guid id, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deleted = await schedules.DeleteAsync(id, cancellationToken);
+            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> GetSeats(Guid id, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    {
+        var seats = await schedules.GetSeatsAsync(id, cancellationToken);
+        return TypedResults.Ok(seats.Select(s => s.ToAdminDto()));
     }
 }
