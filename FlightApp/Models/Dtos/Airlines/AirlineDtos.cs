@@ -14,6 +14,7 @@ public record AirlineAdminListItemDto(
     string Name,
     string Country,
     Guid? LogoFileId,
+    string? LogoUrl,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt);
