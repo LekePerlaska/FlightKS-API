@@ -38,7 +38,7 @@ public static class AdminFlightsEndpoints
         {
             var flight = await flights.CreateAsync(
                 dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
-                dto.BasePrice, dto.DurationMinutes, cancellationToken);
+                dto.BasePrice, cancellationToken);
             return TypedResults.Created($"/api/v1/admin/flights/{flight.Id}", flight.ToAdminListItem());
         }
         catch (InvalidOperationException ex)
@@ -52,8 +52,8 @@ public static class AdminFlightsEndpoints
         try
         {
             var updated = await flights.UpdateAsync(
-                id, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
-                dto.BasePrice, dto.DurationMinutes, dto.IsActive, cancellationToken);
+                id, dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
+                dto.BasePrice, dto.IsActive, cancellationToken);
             return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
         }
         catch (InvalidOperationException ex)

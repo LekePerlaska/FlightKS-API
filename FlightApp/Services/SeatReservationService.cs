@@ -27,46 +27,72 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
         Guid bookingId,
         Guid ownerUserId,
         Guid passengerId,
-        Guid flightSeatId,
+        Guid seatId,
+        Guid itinerarySegmentId,
         TimeSpan? holdFor = null,
         CancellationToken cancellationToken = default)
     {
-        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken)
+        _ = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken)
             ?? throw new InvalidOperationException($"Booking '{bookingId}' not found for this user.");
 
-        var passenger = await db.Passengers.AsNoTracking()
+        _ = await db.Passengers.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == passengerId && p.BookingId == bookingId, cancellationToken)
             ?? throw new InvalidOperationException($"Passenger '{passengerId}' not part of booking '{bookingId}'.");
 
-        var seat = await db.FlightSeats
+        var segment = await db.ItinerarySegments.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == itinerarySegmentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Itinerary segment '{itinerarySegmentId}' not found.");
+
+        var schedule = await db.FlightSchedules.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == segment.FlightScheduleId, cancellationToken)
+            ?? throw new InvalidOperationException("Flight schedule not found.");
+
+        var flightSeat = await db.FlightSeats
             .Include(fs => fs.Seat)
-            .FirstOrDefaultAsync(fs => fs.Id == flightSeatId, cancellationToken)
-            ?? throw new InvalidOperationException($"Flight seat '{flightSeatId}' not found.");
+            .FirstOrDefaultAsync(fs => fs.SeatId == seatId && fs.FlightScheduleId == segment.FlightScheduleId, cancellationToken);
 
-        if (seat.Status != FlightSeatStatus.Available)
-            throw new InvalidOperationException($"Flight seat '{flightSeatId}' is not available.");
+        if (flightSeat is null)
+        {
+            var aircraftSeat = await db.Seats.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == seatId && s.AircraftId == schedule.AircraftId, cancellationToken)
+                ?? throw new InvalidOperationException($"Seat '{seatId}' not found on this flight's aircraft.");
 
-        seat.Status = FlightSeatStatus.Reserved;
-        seat.ReservedUntil = DateTime.UtcNow.Add(holdFor ?? DefaultHold);
-        seat.UpdatedAt = DateTime.UtcNow;
+            flightSeat = new FlightSeat
+            {
+                SeatId = seatId,
+                FlightScheduleId = segment.FlightScheduleId,
+                Status = FlightSeatStatus.Available,
+                Price = schedule.CurrentPrice,
+            };
+            db.FlightSeats.Add(flightSeat);
+            await db.SaveChangesAsync(cancellationToken);
+            flightSeat.Seat = aircraftSeat;
+        }
+
+        if (flightSeat.Status != FlightSeatStatus.Available)
+            throw new InvalidOperationException("This seat is no longer available.");
+
+        flightSeat.Status = FlightSeatStatus.Reserved;
+        flightSeat.ReservedUntil = DateTime.UtcNow.Add(holdFor ?? DefaultHold);
+        flightSeat.UpdatedAt = DateTime.UtcNow;
 
         var ticket = new Ticket
         {
             BookingId = bookingId,
             PassengerId = passengerId,
-            FlightScheduleId = seat.FlightScheduleId,
-            FlightSeatId = seat.Id,
+            FlightScheduleId = segment.FlightScheduleId,
+            FlightSeatId = flightSeat.Id,
             TicketNumber = GenerateTicketNumber(),
             TicketStatus = TicketStatus.Issued,
-            Price = seat.Price,
+            Price = flightSeat.Price,
             IssuedAt = DateTime.UtcNow,
         };
         db.Tickets.Add(ticket);
 
         await db.SaveChangesAsync(cancellationToken);
-        await seatHub.Clients.Group(seat.FlightScheduleId.ToString())
-            .SendAsync("SeatReserved", seat.Id, cancellationToken: cancellationToken);
-        return new SeatReservationResult(seat, ticket);
+        await seatHub.Clients.Group(segment.FlightScheduleId.ToString())
+            .SendAsync("SeatReserved", flightSeat.Id, cancellationToken: cancellationToken);
+        return new SeatReservationResult(flightSeat, ticket);
     }
 
     public async Task<bool> ReleaseAsync(Guid bookingId, Guid ownerUserId, Guid flightSeatId, CancellationToken cancellationToken = default)

@@ -26,7 +26,7 @@ public static class SeatReservationsEndpoints
         try
         {
             var result = await reservations.ReserveAsync(
-                bookingId, userId.Value, dto.PassengerId, dto.FlightSeatId, dto.HoldFor, cancellationToken);
+                bookingId, userId.Value, dto.PassengerId, dto.SeatId, dto.ItinerarySegmentId, dto.HoldFor, cancellationToken);
             return TypedResults.Ok(new SeatReservationResponseDto(
                 result.FlightSeat.Id,
                 result.FlightSeat.SeatId,

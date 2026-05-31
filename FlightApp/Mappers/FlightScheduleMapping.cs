@@ -7,6 +7,9 @@ namespace FlightKS.Mappers;
 
 public static class FlightScheduleMapping
 {
+    private static int DurationMinutes(DateTime departure, DateTime arrival) =>
+        Math.Max(0, (int)Math.Round((arrival - departure).TotalMinutes));
+
     public static FlightScheduleDetailDto ToDetail(this FlightSchedule s) => new(
         s.Id,
         s.FlightId,
@@ -17,7 +20,7 @@ public static class FlightScheduleMapping
         s.Aircraft.ToDto(),
         s.DepartureTime,
         s.ArrivalTime,
-        s.Flight.DurationMinutes,
+        DurationMinutes(s.DepartureTime, s.ArrivalTime),
         s.Status,
         s.AvailableSeats,
         s.CurrentPrice,
@@ -38,7 +41,7 @@ public static class FlightScheduleMapping
         s.Aircraft?.Model,
         s.DepartureTime,
         s.ArrivalTime,
-        s.Flight.DurationMinutes,
+        DurationMinutes(s.DepartureTime, s.ArrivalTime),
         s.Status,
         s.AvailableSeats,
         s.CurrentPrice,
@@ -70,4 +73,13 @@ public static class FlightScheduleMapping
         fs.Status,
         fs.Price,
         fs.ReservedUntil);
+
+    public static ScheduleSeatDto ToScheduleSeatDto(this Seat s, decimal price) => new(
+        s.Id,
+        s.SeatNumber,
+        s.SeatClass,
+        s.IsWindow,
+        s.IsAisle,
+        s.ExtraLegroom,
+        price);
 }

@@ -5,6 +5,9 @@ namespace FlightKS.Mappers;
 
 public static class ItineraryMapping
 {
+    private static int DurationMinutes(DateTime departure, DateTime arrival) =>
+        Math.Max(0, (int)Math.Round((arrival - departure).TotalMinutes));
+
     public static ItinerarySearchResultDto ToSearchResult(this Itinerary i) => new(
         i.Id,
         i.OriginAirportId,
@@ -36,7 +39,7 @@ public static class ItineraryMapping
         s.FlightSchedule.Flight.DestinationAirport.ToDto(),
         s.FlightSchedule.DepartureTime,
         s.FlightSchedule.ArrivalTime,
-        s.FlightSchedule.Flight.DurationMinutes,
+        DurationMinutes(s.FlightSchedule.DepartureTime, s.FlightSchedule.ArrivalTime),
         s.FlightSchedule.Status,
         s.FlightSchedule.AvailableSeats,
         s.FlightSchedule.CurrentPrice,

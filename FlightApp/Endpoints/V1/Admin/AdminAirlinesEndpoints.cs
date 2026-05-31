@@ -48,14 +48,28 @@ public static class AdminAirlinesEndpoints
 
     private static async Task<IResult> Update(Guid id, AirlineUpdateDto dto, IAirlineService airlines, CancellationToken cancellationToken)
     {
-        var updated = await airlines.UpdateAsync(id, dto.Code, dto.Name, dto.Country, dto.LogoFileId, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        try
+        {
+            var updated = await airlines.UpdateAsync(id, dto.Code, dto.Name, dto.Country, dto.LogoFileId, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AirlineUpdateDto dto, IAirlineService airlines, CancellationToken cancellationToken)
     {
-        var updated = await airlines.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
-        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        try
+        {
+            var updated = await airlines.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
+            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Conflict(new { error = ex.Message });
+        }
     }
 
     private static async Task<IResult> Delete(Guid id, IAirlineService airlines, CancellationToken cancellationToken)

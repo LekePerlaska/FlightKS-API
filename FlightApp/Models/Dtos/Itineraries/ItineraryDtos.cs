@@ -39,6 +39,27 @@ public record ItinerarySearchResultDto(
     DateTime UpdatedAt,
     IReadOnlyList<ItinerarySegmentDto> Segments);
 
+// An itinerary is defined entirely by the ordered flight schedules it contains.
+// Route, times, duration, price and stops are all derived from those segments —
+// none of them are entered by hand.
+public record ItineraryCreateDto(
+    List<Guid> FlightScheduleIds);
+
+// The only itinerary-level field an admin can set directly is visibility.
+// Everything else changes by editing the itinerary's segments.
+public record ItineraryUpdateDto(
+    bool? IsActive);
+
+public record ItinerarySegmentCreateDto(
+    Guid FlightScheduleId,
+    int SegmentOrder,
+    int? LayoverMinutesAfterSegment);
+
+public record ItinerarySegmentUpdateDto(
+    Guid? FlightScheduleId,
+    int? SegmentOrder,
+    int? LayoverMinutesAfterSegment);
+
 public record ItinerarySeatSummarySegmentDto(
     Guid SegmentId,
     int SegmentOrder,
