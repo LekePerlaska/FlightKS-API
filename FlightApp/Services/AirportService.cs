@@ -36,7 +36,7 @@ public class AirportService(AppDbContext db) : IAirportService
             .OrderBy(a => a.City)
             .ToListAsync(cancellationToken);
 
-    public async Task<Airport> CreateAsync(string code, string name, string city, string country, string? timeZone, CancellationToken cancellationToken = default)
+    public async Task<Airport> CreateAsync(string code, string name, string city, string country, string timeZone, CancellationToken cancellationToken = default)
     {
         var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Code == code, cancellationToken);
@@ -70,8 +70,7 @@ public class AirportService(AppDbContext db) : IAirportService
         var airport = await db.Airports.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (airport is null) return false;
 
-        airport.DeletedAt = DateTime.UtcNow;
-        airport.IsActive = false;
+        db.Airports.Remove(airport);
         await db.SaveChangesAsync(cancellationToken);
         return true;
     }

@@ -6,7 +6,7 @@ public record AirportDto(
     string Name,
     string City,
     string Country,
-    string? TimeZone);
+    string TimeZone);
 
 public record AirportAdminListItemDto(
     Guid Id,
@@ -14,7 +14,7 @@ public record AirportAdminListItemDto(
     string Name,
     string City,
     string Country,
-    string? TimeZone,
+    string TimeZone,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt);
@@ -24,7 +24,7 @@ public record AirportCreateDto(
     string Name,
     string City,
     string Country,
-    string? TimeZone);
+    string TimeZone);
 
 public record AirportUpdateDto(
     string? Code,
