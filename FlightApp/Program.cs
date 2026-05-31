@@ -184,7 +184,6 @@ v1.MapAirportsEndpoints();
 v1.MapTimezonesEndpoints();
 v1.MapAirlinesEndpoints();
 v1.MapFlightsEndpoints();
-v1.MapFlightSchedulesEndpoints();
 v1.MapItinerariesEndpoints();
 v1.MapBaggageOptionsEndpoints();
 v1.MapBookingsEndpoints();
