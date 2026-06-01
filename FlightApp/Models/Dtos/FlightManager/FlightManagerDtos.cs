@@ -30,3 +30,15 @@ public record FlightManagerPassengerDto(
     string TicketNumber,
     TicketStatus TicketStatus,
     string? SeatNumber);
+
+public record FlightManagerSeatDto(
+    Guid SeatId,
+    Guid? FlightSeatId,
+    string SeatNumber,
+    SeatClass SeatClass,
+    FlightSeatStatus Status,
+    decimal Price);
+
+public record FlightManagerSeatStatusUpdateDto(FlightSeatStatus Status);
+
+public record NotifyPassengersDto(string? Title, string Message);
