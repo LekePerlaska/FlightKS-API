@@ -37,7 +37,9 @@ public record ItinerarySearchResultDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<ItinerarySegmentDto> Segments);
+    IReadOnlyList<ItinerarySegmentDto> Segments,
+    SeatClass? SelectedSeatClass = null,
+    decimal? SelectedClassTotalPrice = null);
 
 // An itinerary is defined entirely by the ordered flight schedules it contains.
 // Route, times, duration, price and stops are all derived from those segments —

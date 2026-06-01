@@ -1,3 +1,4 @@
+using FlightKS.Enums;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Models.Entities;
 
@@ -8,7 +9,7 @@ public static class ItineraryMapping
     private static int DurationMinutes(DateTime departure, DateTime arrival) =>
         Math.Max(0, (int)Math.Round((arrival - departure).TotalMinutes));
 
-    public static ItinerarySearchResultDto ToSearchResult(this Itinerary i) => new(
+    public static ItinerarySearchResultDto ToSearchResult(this Itinerary i, SeatClass? seatClass = null) => new(
         i.Id,
         i.OriginAirportId,
         i.DestinationAirportId,
@@ -25,7 +26,14 @@ public static class ItineraryMapping
         i.Segments
             .OrderBy(s => s.SegmentOrder)
             .Select(s => s.ToDto())
-            .ToArray());
+            .ToArray(),
+        seatClass,
+        seatClass is null ? null : ClassTotal(i, seatClass.Value));
+
+    private static decimal ClassTotal(Itinerary i, SeatClass seatClass) =>
+        i.Segments.Sum(s =>
+            s.FlightSchedule.Prices.FirstOrDefault(p => p.SeatClass == seatClass)?.Price
+            ?? s.FlightSchedule.CurrentPrice);
 
     public static ItinerarySegmentDto ToDto(this ItinerarySegment s) => new(
         s.Id,

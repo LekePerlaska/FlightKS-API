@@ -14,6 +14,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         Guid destinationAirportId,
         DateOnly departureDate,
         int passengers = 1,
+        SeatClass? seatClass = null,
         CancellationToken cancellationToken = default)
     {
         var originTimeZone = await db.Airports.AsNoTracking()
@@ -23,7 +24,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
             ?? "UTC";
         var (dayStart, dayEnd) = GetUtcDateWindow(departureDate, originTimeZone);
 
-        return await LoadFull(asNoTracking: true)
+        var query = LoadFull(asNoTracking: true)
             .Where(i =>
                 i.OriginAirportId == originAirportId &&
                 i.DestinationAirportId == destinationAirportId &&
@@ -31,10 +32,33 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 i.DepartureTime < dayEnd &&
                 i.IsActive &&
                 i.Segments.All(s => s.FlightSchedule.Flight.IsActive) &&
-                i.Segments.All(s => s.FlightSchedule.Status != FlightScheduleStatus.Cancelled) &&
+                i.Segments.All(s => s.FlightSchedule.Status != FlightScheduleStatus.Cancelled));
+
+        if (seatClass is { } cls)
+        {
+            // Every segment must have at least `passengers` seats of the chosen
+            // class still available: (class seats on the aircraft) − (class
+            // FlightSeats already taken). FlightSeat rows exist only once a seat
+            // is reserved/booked, so the subtraction yields true availability.
+            query = query.Where(i => i.Segments.All(s =>
+                db.Seats.Count(st =>
+                    st.AircraftId == s.FlightSchedule.AircraftId &&
+                    st.SeatClass == cls)
+                - db.FlightSeats.Count(fsx =>
+                    fsx.FlightScheduleId == s.FlightScheduleId &&
+                    fsx.Seat.SeatClass == cls &&
+                    fsx.Status != FlightSeatStatus.Available)
+                >= passengers));
+        }
+        else
+        {
+            query = query.Where(i =>
                 !db.ItinerarySegments.Any(s =>
                     s.ItineraryId == i.Id &&
-                    s.FlightSchedule.AvailableSeats < passengers))
+                    s.FlightSchedule.AvailableSeats < passengers));
+        }
+
+        return await query
             .OrderBy(i => i.TotalPrice)
             .ToListAsync(cancellationToken);
     }
@@ -293,6 +317,9 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 .ThenInclude(s => s.FlightSchedule)
                     .ThenInclude(fs => fs.Flight)
                         .ThenInclude(f => f.DestinationAirport)
+            .Include(i => i.Segments)
+                .ThenInclude(s => s.FlightSchedule)
+                    .ThenInclude(fs => fs.Prices)
             .AsQueryable();
         return asNoTracking ? q.AsNoTracking() : q;
     }

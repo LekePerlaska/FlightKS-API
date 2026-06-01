@@ -50,7 +50,11 @@ public static class FlightScheduleMapping
         s.Gate,
         s.DelayReason,
         s.CreatedAt,
-        s.UpdatedAt);
+        s.UpdatedAt,
+        s.Prices
+            .OrderBy(p => p.SeatClass)
+            .Select(p => new FlightScheduleClassPriceDto(p.SeatClass, p.Price))
+            .ToArray());
 
     public static FlightManagerScheduleListItemDto ToManagerListItem(this FlightSchedule s) => new(
         s.Id,
