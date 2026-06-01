@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Enums;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Bookings;
 using FlightKS.Services.Interfaces;
@@ -29,7 +30,7 @@ public static class BookingsEndpoints
 
         try
         {
-            var booking = await bookings.CreateAsync(userId.Value, dto.ItineraryId, dto.PassengerCount, cancellationToken);
+            var booking = await bookings.CreateAsync(userId.Value, dto.ItineraryId, dto.PassengerCount, ParseCabinClass(dto.CabinClass), cancellationToken);
             return TypedResults.Created($"/api/v1/bookings/{booking.Id}/summary", booking.ToResponse());
         }
         catch (InvalidOperationException ex)
@@ -92,5 +93,12 @@ public static class BookingsEndpoints
 
         var cancelled = await bookings.CancelAsync(bookingId, userId.Value, cancellationToken);
         return cancelled ? TypedResults.NoContent() : TypedResults.NotFound();
+    }
+
+    private static SeatClass? ParseCabinClass(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Replace("_", "").Replace(" ", "");
+        return Enum.TryParse<SeatClass>(normalized, ignoreCase: true, out var result) ? result : null;
     }
 }

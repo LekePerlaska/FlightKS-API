@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Aircraft> Aircrafts => Set<Aircraft>();
     public DbSet<Flight> Flights => Set<Flight>();
     public DbSet<FlightSchedule> FlightSchedules => Set<FlightSchedule>();
+    public DbSet<FlightSchedulePrice> FlightSchedulePrices => Set<FlightSchedulePrice>();
     public DbSet<Seat> Seats => Set<Seat>();
     public DbSet<FlightSeat> FlightSeats => Set<FlightSeat>();
     public DbSet<Booking> Bookings => Set<Booking>();
@@ -42,6 +43,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         ConfigureAircraft(modelBuilder);
         ConfigureFlight(modelBuilder);
         ConfigureFlightSchedule(modelBuilder);
+        ConfigureFlightSchedulePrice(modelBuilder);
         ConfigureSeat(modelBuilder);
         ConfigureFlightSeat(modelBuilder);
         ConfigureBooking(modelBuilder);
@@ -199,6 +201,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasQueryFilter(s => s.DeletedAt == null);
         });
 
+    private static void ConfigureFlightSchedulePrice(ModelBuilder mb) =>
+        mb.Entity<FlightSchedulePrice>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasDefaultValueSql("gen_random_uuid()");
+            e.Property(p => p.SeatClass).HasColumnType("seat_class");
+            e.Property(p => p.Price).HasColumnType("numeric(10,2)");
+            e.Property(p => p.CreatedAt).HasDefaultValueSql("now()");
+            e.Property(p => p.UpdatedAt).HasDefaultValueSql("now()");
+            e.HasIndex(p => new { p.FlightScheduleId, p.SeatClass }).IsUnique();
+            e.HasOne(p => p.FlightSchedule)
+                .WithMany(s => s.Prices)
+                .HasForeignKey(p => p.FlightScheduleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
     private static void ConfigureSeat(ModelBuilder mb) =>
         mb.Entity<Seat>(e =>
         {
@@ -250,6 +268,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(b => b.Status)
                 .HasColumnType("booking_status")
                 .HasDefaultValueSql("'pending'::booking_status");
+            e.Property(b => b.CabinClass).HasColumnType("seat_class");
             e.Property(b => b.TotalAmount).HasColumnType("numeric(10,2)");
             e.Property(b => b.CreatedAt).HasDefaultValueSql("now()");
             e.Property(b => b.UpdatedAt).HasDefaultValueSql("now()");

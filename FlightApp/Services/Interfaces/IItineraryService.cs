@@ -1,3 +1,4 @@
+using FlightKS.Enums;
 using FlightKS.Models.Entities;
 
 namespace FlightKS.Services.Interfaces;
@@ -9,6 +10,7 @@ public interface IItineraryService
         Guid destinationAirportId,
         DateOnly departureDate,
         int passengers = 1,
+        SeatClass? seatClass = null,
         CancellationToken cancellationToken = default);
 
     Task<Itinerary?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);

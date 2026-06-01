@@ -57,12 +57,17 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
                 .FirstOrDefaultAsync(s => s.Id == seatId && s.AircraftId == schedule.AircraftId, cancellationToken)
                 ?? throw new InvalidOperationException($"Seat '{seatId}' not found on this flight's aircraft.");
 
+            var classPrice = await db.FlightSchedulePrices.AsNoTracking()
+                .Where(p => p.FlightScheduleId == segment.FlightScheduleId && p.SeatClass == aircraftSeat.SeatClass)
+                .Select(p => (decimal?)p.Price)
+                .FirstOrDefaultAsync(cancellationToken);
+
             flightSeat = new FlightSeat
             {
                 SeatId = seatId,
                 FlightScheduleId = segment.FlightScheduleId,
                 Status = FlightSeatStatus.Available,
-                Price = schedule.CurrentPrice,
+                Price = classPrice ?? schedule.CurrentPrice,
             };
             db.FlightSeats.Add(flightSeat);
             await db.SaveChangesAsync(cancellationToken);

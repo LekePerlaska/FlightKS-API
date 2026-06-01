@@ -24,6 +24,7 @@ public class FlightSchedule
     public DateTime? DeletedAt { get; set; }
 
     public ICollection<FlightSeat> FlightSeats { get; set; } = [];
+    public ICollection<FlightSchedulePrice> Prices { get; set; } = [];
     public ICollection<Ticket> Tickets { get; set; } = [];
     public ICollection<ItinerarySegment> ItinerarySegments { get; set; } = [];
 }
