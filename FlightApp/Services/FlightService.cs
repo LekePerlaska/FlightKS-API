@@ -3,6 +3,7 @@ using FlightKS.Enums;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace FlightKS.Services;
 
@@ -15,8 +16,12 @@ public class FlightService(AppDbContext db) : IFlightService
         int passengers = 1,
         CancellationToken cancellationToken = default)
     {
-        var dayStart = departureDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var dayEnd = departureDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var originTimeZone = await db.Airports.AsNoTracking()
+            .Where(a => a.Id == originAirportId)
+            .Select(a => a.TimeZone)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? "UTC";
+        var (dayStart, dayEnd) = GetUtcDateWindow(departureDate, originTimeZone);
 
         return await db.FlightSchedules.AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.Airline)
@@ -28,7 +33,7 @@ public class FlightService(AppDbContext db) : IFlightService
                 s.Flight.OriginAirportId == originAirportId &&
                 s.Flight.DestinationAirportId == destinationAirportId &&
                 s.DepartureTime >= dayStart &&
-                s.DepartureTime <= dayEnd &&
+                s.DepartureTime < dayEnd &&
                 s.Status == FlightScheduleStatus.Scheduled &&
                 s.AvailableSeats >= passengers)
             .OrderBy(s => s.DepartureTime)
@@ -170,5 +175,14 @@ public class FlightService(AppDbContext db) : IFlightService
             .CountAsync(a => (a.Id == originAirportId || a.Id == destinationAirportId) && a.IsActive, cancellationToken);
         if (activeAirportCount != 2)
             throw new InvalidOperationException("Origin and destination airports must both be active.");
+    }
+
+    private static (DateTime StartUtc, DateTime EndUtc) GetUtcDateWindow(DateOnly date, string timeZone)
+    {
+        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) ?? DateTimeZone.Utc;
+        var localDate = new LocalDate(date.Year, date.Month, date.Day);
+        var start = localDate.AtStartOfDayInZone(zone).ToInstant().ToDateTimeUtc();
+        var end = localDate.PlusDays(1).AtStartOfDayInZone(zone).ToInstant().ToDateTimeUtc();
+        return (start, end);
     }
 }

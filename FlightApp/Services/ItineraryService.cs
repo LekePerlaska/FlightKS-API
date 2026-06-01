@@ -3,6 +3,7 @@ using FlightKS.Enums;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace FlightKS.Services;
 
@@ -15,15 +16,19 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         int passengers = 1,
         CancellationToken cancellationToken = default)
     {
-        var dayStart = departureDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var dayEnd = departureDate.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+        var originTimeZone = await db.Airports.AsNoTracking()
+            .Where(a => a.Id == originAirportId)
+            .Select(a => a.TimeZone)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? "UTC";
+        var (dayStart, dayEnd) = GetUtcDateWindow(departureDate, originTimeZone);
 
         return await LoadFull(asNoTracking: true)
             .Where(i =>
                 i.OriginAirportId == originAirportId &&
                 i.DestinationAirportId == destinationAirportId &&
                 i.DepartureTime >= dayStart &&
-                i.DepartureTime <= dayEnd &&
+                i.DepartureTime < dayEnd &&
                 i.IsActive &&
                 i.Segments.All(s => s.FlightSchedule.Flight.IsActive) &&
                 i.Segments.All(s => s.FlightSchedule.Status != FlightScheduleStatus.Cancelled) &&
@@ -377,6 +382,15 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         itinerary.TotalPrice = ordered.Sum(s => s.Schedule.CurrentPrice);
         itinerary.StopsCount = Math.Max(0, ordered.Count - 1);
         itinerary.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static (DateTime StartUtc, DateTime EndUtc) GetUtcDateWindow(DateOnly date, string timeZone)
+    {
+        var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) ?? DateTimeZone.Utc;
+        var localDate = new LocalDate(date.Year, date.Month, date.Day);
+        var start = localDate.AtStartOfDayInZone(zone).ToInstant().ToDateTimeUtc();
+        var end = localDate.PlusDays(1).AtStartOfDayInZone(zone).ToInstant().ToDateTimeUtc();
+        return (start, end);
     }
 
     private sealed record SegmentCandidate(

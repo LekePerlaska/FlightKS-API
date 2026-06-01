@@ -9,6 +9,8 @@ namespace FlightKS.Services;
 
 public class DashboardService(AppDbContext db) : IDashboardService
 {
+    private static readonly TimeZoneInfo DashboardTimeZone = GetDashboardTimeZone();
+
     public async Task<AdminDashboardSummaryDto> GetAdminSummaryAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
@@ -42,61 +44,48 @@ public class DashboardService(AppDbContext db) : IDashboardService
 
     public async Task<IReadOnlyList<RevenueDataPointDto>> GetRevenueChartAsync(CancellationToken cancellationToken = default)
     {
-        var thirtyDaysAgo = DateTime.UtcNow.Date.AddDays(-29);
+        var days = GetLastThirtyDashboardDays();
+        var startUtc = ToUtcStart(days[0]);
+        var endUtc = ToUtcStart(days[^1].AddDays(1));
 
         var raw = await db.Payments.AsNoTracking()
             .Where(p => p.PaymentStatus == PaymentStatus.Completed
                      && p.PaidAt.HasValue
-                     && p.PaidAt.Value >= thirtyDaysAgo)
-            .GroupBy(p => new
-            {
-                p.PaidAt!.Value.Year,
-                p.PaidAt.Value.Month,
-                p.PaidAt.Value.Day,
-            })
-            .Select(g => new
-            {
-                g.Key.Year,
-                g.Key.Month,
-                g.Key.Day,
-                Revenue = g.Sum(p => p.Amount),
-            })
-            .OrderBy(g => g.Year).ThenBy(g => g.Month).ThenBy(g => g.Day)
+                     && p.PaidAt.Value >= startUtc
+                     && p.PaidAt.Value < endUtc)
+            .Select(p => new { p.PaidAt, p.Amount })
             .ToListAsync(cancellationToken);
 
-        return raw
-            .Select(r => new RevenueDataPointDto(
-                new DateTime(r.Year, r.Month, r.Day).ToString("yyyy-MM-dd"),
-                r.Revenue))
+        var revenueByDay = raw
+            .GroupBy(p => ToDashboardDate(p.PaidAt!.Value))
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
+
+        return days
+            .Select(day => new RevenueDataPointDto(
+                FormatDashboardDate(day),
+                revenueByDay.GetValueOrDefault(day)))
             .ToList();
     }
 
     public async Task<IReadOnlyList<BookingsChartDataPointDto>> GetBookingsChartAsync(CancellationToken cancellationToken = default)
     {
-        var thirtyDaysAgo = DateTime.UtcNow.Date.AddDays(-29);
+        var days = GetLastThirtyDashboardDays();
+        var startUtc = ToUtcStart(days[0]);
+        var endUtc = ToUtcStart(days[^1].AddDays(1));
 
         var raw = await db.Bookings.AsNoTracking()
-            .Where(b => b.CreatedAt >= thirtyDaysAgo)
-            .GroupBy(b => new
-            {
-                b.CreatedAt.Year,
-                b.CreatedAt.Month,
-                b.CreatedAt.Day,
-            })
-            .Select(g => new
-            {
-                g.Key.Year,
-                g.Key.Month,
-                g.Key.Day,
-                Count = g.Count(),
-            })
-            .OrderBy(g => g.Year).ThenBy(g => g.Month).ThenBy(g => g.Day)
+            .Where(b => b.CreatedAt >= startUtc && b.CreatedAt < endUtc)
+            .Select(b => b.CreatedAt)
             .ToListAsync(cancellationToken);
 
-        return raw
-            .Select(r => new BookingsChartDataPointDto(
-                new DateTime(r.Year, r.Month, r.Day).ToString("yyyy-MM-dd"),
-                r.Count))
+        var bookingsByDay = raw
+            .GroupBy(ToDashboardDate)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return days
+            .Select(day => new BookingsChartDataPointDto(
+                FormatDashboardDate(day),
+                bookingsByDay.GetValueOrDefault(day)))
             .ToList();
     }
 
@@ -162,4 +151,49 @@ public class DashboardService(AppDbContext db) : IDashboardService
 
         return new FlightManagerDashboardSummaryDto(todaySchedules, upcomingSchedules, delayedToday, cancelledToday);
     }
+
+    private static TimeZoneInfo GetDashboardTimeZone()
+    {
+        return TryFindTimeZone("Europe/Budapest")
+            ?? TryFindTimeZone("Central Europe Standard Time")
+            ?? TimeZoneInfo.Local;
+    }
+
+    private static TimeZoneInfo? TryFindTimeZone(string id)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(id);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return null;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return null;
+        }
+    }
+
+    private static IReadOnlyList<DateTime> GetLastThirtyDashboardDays()
+    {
+        var today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, DashboardTimeZone).Date;
+        return Enumerable.Range(0, 30)
+            .Select(offset => today.AddDays(offset - 29))
+            .ToList();
+    }
+
+    private static DateTime ToUtcStart(DateTime localDate) =>
+        TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localDate, DateTimeKind.Unspecified), DashboardTimeZone);
+
+    private static DateTime ToDashboardDate(DateTime utcDate)
+    {
+        var value = utcDate.Kind == DateTimeKind.Utc
+            ? utcDate
+            : DateTime.SpecifyKind(utcDate, DateTimeKind.Utc);
+
+        return TimeZoneInfo.ConvertTimeFromUtc(value, DashboardTimeZone).Date;
+    }
+
+    private static string FormatDashboardDate(DateTime date) => date.ToString("yyyy-MM-dd");
 }
