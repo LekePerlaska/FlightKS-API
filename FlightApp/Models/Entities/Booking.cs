@@ -14,6 +14,7 @@ public class Booking
 
     public required string BookingReference { get; set; }
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
+    public SeatClass? CabinClass { get; set; }
     public decimal TotalAmount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

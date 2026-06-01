@@ -35,8 +35,10 @@ public static class FlightScheduleMapping
         s.Flight.Airline?.Code ?? string.Empty,
         s.Flight.OriginAirport?.Code ?? string.Empty,
         s.Flight.OriginAirport?.City ?? string.Empty,
+        s.Flight.OriginAirport?.TimeZone ?? string.Empty,
         s.Flight.DestinationAirport?.Code ?? string.Empty,
         s.Flight.DestinationAirport?.City ?? string.Empty,
+        s.Flight.DestinationAirport?.TimeZone ?? string.Empty,
         s.AircraftId,
         s.Aircraft?.Model,
         s.DepartureTime,
@@ -48,7 +50,11 @@ public static class FlightScheduleMapping
         s.Gate,
         s.DelayReason,
         s.CreatedAt,
-        s.UpdatedAt);
+        s.UpdatedAt,
+        s.Prices
+            .OrderBy(p => p.SeatClass)
+            .Select(p => new FlightScheduleClassPriceDto(p.SeatClass, p.Price))
+            .ToArray());
 
     public static FlightManagerScheduleListItemDto ToManagerListItem(this FlightSchedule s) => new(
         s.Id,

@@ -28,11 +28,15 @@ public static class ItinerariesEndpoints
         DateOnly departureDate,
         IItineraryService itineraries,
         CancellationToken cancellationToken,
-        int passengers = 1)
+        int passengers = 1,
+        SeatClass? seatClass = null)
     {
         var results = await itineraries.SearchAsync(
-            originAirportId, destinationAirportId, departureDate, passengers, cancellationToken);
-        return TypedResults.Ok(results.Select(i => i.ToSearchResult()));
+            originAirportId, destinationAirportId, departureDate, passengers, seatClass, cancellationToken);
+        var mapped = results.Select(i => i.ToSearchResult(seatClass));
+        if (seatClass is not null)
+            mapped = mapped.OrderBy(r => r.SelectedClassTotalPrice ?? r.TotalPrice);
+        return TypedResults.Ok(mapped);
     }
 
     private static async Task<IResult> GetById(
@@ -95,8 +99,11 @@ public static class ItinerariesEndpoints
         if (segment is null) return TypedResults.NotFound();
 
         var schedule = await schedules.GetByIdAsync(segment.FlightScheduleId, cancellationToken);
-        var price = schedule?.CurrentPrice ?? 0;
+        var fallbackPrice = schedule?.CurrentPrice ?? 0;
+        var priceByClass = schedule?.Prices.ToDictionary(p => p.SeatClass, p => p.Price)
+            ?? [];
         var seats = await schedules.GetSeatsAsync(segment.FlightScheduleId, cancellationToken);
-        return TypedResults.Ok(seats.Select(s => s.ToScheduleSeatDto(price)));
+        return TypedResults.Ok(seats.Select(s => s.ToScheduleSeatDto(
+            priceByClass.TryGetValue(s.SeatClass, out var classPrice) ? classPrice : fallbackPrice)));
     }
 }

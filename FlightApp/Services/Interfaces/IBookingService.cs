@@ -7,7 +7,7 @@ public record BookingPriceSummary(decimal SeatsTotal, decimal BaggageTotal, deci
 
 public interface IBookingService
 {
-    Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, CancellationToken cancellationToken = default);
+    Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, SeatClass? cabinClass = null, CancellationToken cancellationToken = default);
     Task<IEnumerable<Booking>> GetForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<Booking?> GetByIdAsync(Guid bookingId, Guid? ownerUserId = null, CancellationToken cancellationToken = default);
     Task<Booking?> GetSummaryAsync(Guid bookingId, Guid? ownerUserId, CancellationToken cancellationToken = default);
