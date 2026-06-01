@@ -153,6 +153,7 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
 
 var app = builder.Build();
 
@@ -206,6 +207,7 @@ v1.MapAdminBaggageOptionsEndpoints();
 v1.MapPaymentRefundsEndpoints();
 v1.MapFlightManagerDashboardEndpoints();
 v1.MapFlightManagerSchedulesEndpoints();
+v1.MapFlightManagerTicketsEndpoints();
 
 app.MapHub<SeatHub>("/hubs/seats");
 app.MapHub<NotificationHub>("/hubs/notifications");
