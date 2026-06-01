@@ -1,6 +1,7 @@
 using FlightKS.Data;
 using FlightKS.Enums;
 using FlightKS.Models.Entities;
+using FlightKS.Models.Pricing;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,7 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft).ThenInclude(a => a.Airline)
+            .Include(s => s.Prices)
             .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
 
     public async Task<SeatSummary?> GetSeatSummaryAsync(Guid scheduleId, CancellationToken cancellationToken = default)
@@ -29,7 +31,19 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
 
         var total = seatClasses.Count;
         var byClass = seatClasses.GroupBy(c => c).ToDictionary(g => g.Key, g => g.Count());
-        return new SeatSummary(total, total, byClass);
+
+        var takenByClass = await db.FlightSeats.AsNoTracking()
+            .Where(fs => fs.FlightScheduleId == scheduleId && fs.Status != FlightSeatStatus.Available)
+            .GroupBy(fs => fs.Seat.SeatClass)
+            .Select(g => new { SeatClass = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+        var taken = takenByClass.ToDictionary(x => x.SeatClass, x => x.Count);
+
+        var availableByClass = byClass.ToDictionary(
+            kv => kv.Key,
+            kv => Math.Max(0, kv.Value - (taken.TryGetValue(kv.Key, out var t) ? t : 0)));
+        var available = availableByClass.Values.Sum();
+        return new SeatSummary(total, available, availableByClass);
     }
 
     public async Task<IEnumerable<Seat>> GetSeatsAsync(Guid scheduleId, CancellationToken cancellationToken = default)
@@ -50,14 +64,18 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft)
+            .Include(s => s.Prices)
             .Where(s => s.DeletedAt == null)
             .OrderByDescending(s => s.DepartureTime)
             .ToListAsync(cancellationToken);
 
-    public async Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, CancellationToken cancellationToken = default)
+    public async Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default)
     {
         if (arrivalTime <= departureTime)
             throw new InvalidOperationException("Arrival time must be after departure time.");
+
+        if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
+            throw new InvalidOperationException("Cabin class prices must be greater than zero.");
 
         var flight = await db.Flights
             .FirstOrDefaultAsync(f => f.Id == flightId && f.IsActive, cancellationToken)
@@ -93,6 +111,7 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             Gate = gate,
             Status = FlightScheduleStatus.Scheduled,
         };
+        schedule.Prices = await BuildSeededPricesAsync(aircraftId, effectivePrice, classPrices, cancellationToken);
         db.FlightSchedules.Add(schedule);
 
         if (flight.DurationMinutes <= 0)
@@ -112,16 +131,44 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft)
+            .Include(s => s.Prices)
             .FirstAsync(s => s.Id == schedule.Id, cancellationToken);
     }
 
-    public async Task<FlightSchedule?> UpdateAsync(Guid scheduleId, FlightScheduleStatus? status, string? gate, string? delayReason, DateTime? departureTime, DateTime? arrivalTime, decimal? currentPrice, int? availableSeats, CancellationToken cancellationToken = default)
+    private async Task<List<FlightSchedulePrice>> BuildSeededPricesAsync(
+        Guid aircraftId,
+        decimal basePrice,
+        IReadOnlyDictionary<SeatClass, decimal>? classPrices,
+        CancellationToken cancellationToken)
+    {
+        var aircraftClasses = await db.Seats.AsNoTracking()
+            .Where(s => s.AircraftId == aircraftId)
+            .Select(s => s.SeatClass)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (aircraftClasses.Count == 0)
+            aircraftClasses = [SeatClass.Economy];
+
+        return aircraftClasses
+            .Select(c => new FlightSchedulePrice
+            {
+                SeatClass = c,
+                Price = classPrices is not null && classPrices.TryGetValue(c, out var explicitPrice)
+                    ? explicitPrice
+                    : Math.Round(basePrice * CabinFareMultipliers.For(c), 2),
+            })
+            .ToList();
+    }
+
+    public async Task<FlightSchedule?> UpdateAsync(Guid scheduleId, FlightScheduleStatus? status, string? gate, string? delayReason, DateTime? departureTime, DateTime? arrivalTime, decimal? currentPrice, int? availableSeats, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default)
     {
         var schedule = await db.FlightSchedules.IgnoreQueryFilters()
             .Include(s => s.Flight).ThenInclude(f => f.Airline)
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft)
+            .Include(s => s.Prices)
             .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
         if (schedule is null) return null;
         if (schedule.DeletedAt is not null)
@@ -135,6 +182,9 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (currentPrice is <= 0)
             throw new InvalidOperationException("Current price must be greater than zero.");
 
+        if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
+            throw new InvalidOperationException("Cabin class prices must be greater than zero.");
+
         if (departureTime is not null || arrivalTime is not null)
             await EnsureAircraftIsFreeAsync(schedule.AircraftId, nextDeparture, nextArrival, excludeScheduleId: scheduleId, cancellationToken);
 
@@ -145,6 +195,30 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         if (arrivalTime is not null) schedule.ArrivalTime = arrivalTime.Value;
         if (currentPrice is not null) schedule.CurrentPrice = currentPrice.Value;
         if (availableSeats is not null) schedule.AvailableSeats = availableSeats.Value;
+
+        if (classPrices is not null)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var (seatClass, price) in classPrices)
+            {
+                var existing = schedule.Prices.FirstOrDefault(p => p.SeatClass == seatClass);
+                if (existing is null)
+                {
+                    schedule.Prices.Add(new FlightSchedulePrice
+                    {
+                        FlightScheduleId = schedule.Id,
+                        SeatClass = seatClass,
+                        Price = price,
+                    });
+                }
+                else
+                {
+                    existing.Price = price;
+                    existing.UpdatedAt = now;
+                }
+            }
+        }
+
         schedule.UpdatedAt = DateTime.UtcNow;
 
         await SyncDirectItinerariesAsync(schedule, cancellationToken);

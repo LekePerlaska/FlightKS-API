@@ -45,7 +45,12 @@ public record FlightScheduleAdminListItemDto(
     string? Gate,
     string? DelayReason,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    IReadOnlyList<FlightScheduleClassPriceDto> ClassPrices);
+
+public record FlightScheduleClassPriceDto(
+    SeatClass SeatClass,
+    decimal Price);
 
 public record FlightScheduleCreateDto(
     Guid FlightId,
@@ -53,7 +58,8 @@ public record FlightScheduleCreateDto(
     DateTime DepartureTime,
     DateTime ArrivalTime,
     decimal? CurrentPrice,
-    string? Gate);
+    string? Gate,
+    IReadOnlyList<FlightScheduleClassPriceDto>? ClassPrices = null);
 
 public record FlightScheduleStatusUpdateDto(
     FlightScheduleStatus? Status,
@@ -69,7 +75,8 @@ public record FlightScheduleUpdateDto(
     DateTime? DepartureTime,
     DateTime? ArrivalTime,
     decimal? CurrentPrice,
-    int? AvailableSeats);
+    int? AvailableSeats,
+    IReadOnlyList<FlightScheduleClassPriceDto>? ClassPrices = null);
 
 public record FlightSeatDto(
     Guid Id,

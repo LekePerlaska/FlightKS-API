@@ -8,12 +8,30 @@ namespace FlightKS.Services;
 
 public class BookingService(AppDbContext db) : IBookingService
 {
-    public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, CancellationToken cancellationToken = default)
+    public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, SeatClass? cabinClass = null, CancellationToken cancellationToken = default)
     {
         var itinerary = await db.Itineraries.AsNoTracking()
             .FirstOrDefaultAsync(i => i.Id == itineraryId && i.IsActive, cancellationToken);
         if (itinerary is null)
             throw new InvalidOperationException($"Itinerary '{itineraryId}' not found or inactive.");
+
+        var perPassenger = itinerary.TotalPrice;
+        if (cabinClass is { } cls)
+        {
+            var segmentPrices = await db.ItinerarySegments.AsNoTracking()
+                .Where(s => s.ItineraryId == itineraryId)
+                .Select(s => new
+                {
+                    ClassPrice = db.FlightSchedulePrices
+                        .Where(p => p.FlightScheduleId == s.FlightScheduleId && p.SeatClass == cls)
+                        .Select(p => (decimal?)p.Price)
+                        .FirstOrDefault(),
+                    Fallback = s.FlightSchedule.CurrentPrice,
+                })
+                .ToListAsync(cancellationToken);
+            if (segmentPrices.Count > 0)
+                perPassenger = segmentPrices.Sum(x => x.ClassPrice ?? x.Fallback);
+        }
 
         var booking = new Booking
         {
@@ -21,7 +39,8 @@ public class BookingService(AppDbContext db) : IBookingService
             ItineraryId = itineraryId,
             BookingReference = GenerateReference(),
             Status = BookingStatus.Pending,
-            TotalAmount = itinerary.TotalPrice * passengerCount,
+            CabinClass = cabinClass,
+            TotalAmount = perPassenger * passengerCount,
         };
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(cancellationToken);

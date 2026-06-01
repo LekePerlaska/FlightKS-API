@@ -33,7 +33,7 @@ public static class FlightManagerSchedulesEndpoints
     private static async Task<IResult> Patch(Guid scheduleId, FlightScheduleStatusUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
         var updated = await schedules.UpdateAsync(
-            scheduleId, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime, null, null, cancellationToken);
+            scheduleId, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime, null, null, null, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDetail());
     }
 

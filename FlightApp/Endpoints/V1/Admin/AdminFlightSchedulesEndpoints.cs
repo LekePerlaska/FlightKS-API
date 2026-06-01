@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Enums;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.FlightSchedules;
 using FlightKS.Services.Interfaces;
@@ -40,7 +41,7 @@ public static class AdminFlightSchedulesEndpoints
         {
             var schedule = await schedules.CreateAsync(
                 dto.FlightId, dto.AircraftId, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.Gate, cancellationToken);
+                dto.CurrentPrice, dto.Gate, ToPriceMap(dto.ClassPrices), cancellationToken);
             return TypedResults.Created($"/api/v1/admin/flight-schedules/{schedule.Id}", schedule.ToAdminListItem());
         }
         catch (InvalidOperationException ex)
@@ -55,7 +56,7 @@ public static class AdminFlightSchedulesEndpoints
         {
             var updated = await schedules.UpdateAsync(
                 id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.AvailableSeats, cancellationToken);
+                dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
             return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
         }
         catch (InvalidOperationException ex)
@@ -70,7 +71,7 @@ public static class AdminFlightSchedulesEndpoints
         {
             var updated = await schedules.UpdateAsync(
                 id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.AvailableSeats, cancellationToken);
+                dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
             return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
         }
         catch (InvalidOperationException ex)
@@ -97,4 +98,11 @@ public static class AdminFlightSchedulesEndpoints
         var seats = await schedules.GetSeatsAsync(id, cancellationToken);
         return TypedResults.Ok(seats.Select(s => s.ToAdminDto()));
     }
+
+    private static IReadOnlyDictionary<SeatClass, decimal>? ToPriceMap(IReadOnlyList<FlightScheduleClassPriceDto>? classPrices) =>
+        classPrices is null || classPrices.Count == 0
+            ? null
+            : classPrices
+                .GroupBy(c => c.SeatClass)
+                .ToDictionary(g => g.Key, g => g.Last().Price);
 }
