@@ -202,6 +202,7 @@ v1.MapAdminFlightsEndpoints();
 v1.MapAdminFlightSchedulesEndpoints();
 v1.MapAdminItinerariesEndpoints();
 v1.MapAdminBookingsEndpoints();
+v1.MapAdminBaggageOptionsEndpoints();
 v1.MapPaymentRefundsEndpoints();
 v1.MapFlightManagerDashboardEndpoints();
 v1.MapFlightManagerSchedulesEndpoints();
