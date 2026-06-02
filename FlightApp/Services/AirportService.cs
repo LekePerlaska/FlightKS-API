@@ -1,7 +1,9 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace FlightKS.Services;
 
@@ -41,13 +43,18 @@ public class AirportService(AppDbContext db) : IAirportService
         code = code.Trim().ToUpperInvariant();
         name = name.Trim();
 
+        if (string.IsNullOrWhiteSpace(timeZone))
+            throw new ValidationException("timeZone", "Timezone is required.");
+        if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) is null)
+            throw new ValidationException("timeZone", "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London.");
+
         var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Code.ToLower() == code.ToLower(), cancellationToken);
-        if (codeExists) throw new InvalidOperationException($"Airport code '{code}' is already in use.");
+        if (codeExists) throw new ConflictException($"Airport code '{code}' is already in use.");
 
         var nameExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Name.ToLower() == name.ToLower(), cancellationToken);
-        if (nameExists) throw new InvalidOperationException($"Airport name '{name}' is already in use.");
+        if (nameExists) throw new ConflictException($"Airport name '{name}' is already in use.");
 
         var airport = new Airport { Code = code, Name = name, City = city, Country = country, TimeZone = timeZone };
         db.Airports.Add(airport);
@@ -63,18 +70,21 @@ public class AirportService(AppDbContext db) : IAirportService
         code = code?.Trim().ToUpperInvariant();
         name = name?.Trim();
 
+        if (timeZone is not null && DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) is null)
+            throw new ValidationException("timeZone", "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London.");
+
         if (code is not null)
         {
             var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(a => a.Id != id && a.Code.ToLower() == code.ToLower(), cancellationToken);
-            if (codeExists) throw new InvalidOperationException($"Airport code '{code}' is already in use.");
+            if (codeExists) throw new ConflictException($"Airport code '{code}' is already in use.");
         }
 
         if (name is not null)
         {
             var nameExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(a => a.Id != id && a.Name.ToLower() == name.ToLower(), cancellationToken);
-            if (nameExists) throw new InvalidOperationException($"Airport name '{name}' is already in use.");
+            if (nameExists) throw new ConflictException($"Airport name '{name}' is already in use.");
         }
 
         if (code is not null) airport.Code = code;
@@ -99,7 +109,7 @@ public class AirportService(AppDbContext db) : IAirportService
         var isUsedByItinerary = await db.Itineraries.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(i => i.OriginAirportId == id || i.DestinationAirportId == id, cancellationToken);
         if (isUsedByFlight || isUsedByItinerary)
-            throw new InvalidOperationException("Cannot delete an airport that is used by flights or itineraries. Deactivate it instead.");
+            throw new BusinessRuleException("Cannot delete an airport that is used by flights or itineraries. Deactivate it instead.");
 
         db.Airports.Remove(airport);
         await db.SaveChangesAsync(cancellationToken);

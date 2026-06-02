@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -24,17 +25,15 @@ public class BookingBaggageService(AppDbContext db) : IBookingBaggageService
         int quantity = 1,
         CancellationToken cancellationToken = default)
     {
-        var owned = await db.Bookings.AsNoTracking()
-            .AnyAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken);
-        if (!owned) throw new InvalidOperationException($"Booking '{bookingId}' not found for this user.");
+        await EnsureBookingOwnedAsync(bookingId, ownerUserId, cancellationToken);
 
         var passengerOk = await db.Passengers.AsNoTracking()
             .AnyAsync(p => p.Id == passengerId && p.BookingId == bookingId, cancellationToken);
-        if (!passengerOk) throw new InvalidOperationException($"Passenger '{passengerId}' not part of booking '{bookingId}'.");
+        if (!passengerOk) throw new NotFoundException($"Passenger '{passengerId}' not found in booking '{bookingId}'.");
 
         var optionExists = await db.BaggageOptions.AsNoTracking()
             .AnyAsync(bo => bo.Id == baggageOptionId && bo.IsActive, cancellationToken);
-        if (!optionExists) throw new InvalidOperationException($"Baggage option '{baggageOptionId}' not available.");
+        if (!optionExists) throw new NotFoundException($"Baggage option '{baggageOptionId}' not found or is inactive.");
 
         var entity = new BookingBaggage
         {
@@ -80,5 +79,15 @@ public class BookingBaggageService(AppDbContext db) : IBookingBaggageService
         db.BookingBaggage.Remove(item);
         await db.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    private async Task EnsureBookingOwnedAsync(Guid bookingId, Guid userId, CancellationToken cancellationToken)
+    {
+        var booking = await db.Bookings.AsNoTracking()
+            .Select(b => new { b.Id, b.UserId })
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken)
+            ?? throw new NotFoundException($"Booking '{bookingId}' not found.");
+        if (booking.UserId != userId)
+            throw new ForbiddenException("You do not have access to this booking.");
     }
 }

@@ -34,32 +34,18 @@ public static class AdminFlightsEndpoints
 
     private static async Task<IResult> Create(FlightCreateDto dto, IFlightService flights, CancellationToken cancellationToken)
     {
-        try
-        {
-            var flight = await flights.CreateAsync(
-                dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
-                dto.BasePrice, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/flights/{flight.Id}", flight.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var flight = await flights.CreateAsync(
+            dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
+            dto.BasePrice, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/flights/{flight.Id}", flight.ToAdminListItem());
     }
 
     private static async Task<IResult> Update(Guid id, FlightUpdateDto dto, IFlightService flights, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await flights.UpdateAsync(
-                id, dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
-                dto.BasePrice, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await flights.UpdateAsync(
+            id, dto.AirlineId, dto.FlightNumber, dto.OriginAirportId, dto.DestinationAirportId,
+            dto.BasePrice, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, FlightUpdateDto dto, IFlightService flights, CancellationToken cancellationToken)
@@ -67,5 +53,4 @@ public static class AdminFlightsEndpoints
         var updated = await flights.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
-
 }

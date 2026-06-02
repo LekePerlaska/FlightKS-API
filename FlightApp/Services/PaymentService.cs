@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -18,8 +19,10 @@ public class PaymentService(AppDbContext db) : IPaymentService
     {
         var booking = await db.Bookings
             .Include(b => b.Tickets).ThenInclude(t => t.FlightSeat)
-            .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken)
-            ?? throw new InvalidOperationException($"Booking '{bookingId}' not found for this user.");
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken)
+            ?? throw new NotFoundException($"Booking '{bookingId}' not found.");
+        if (booking.UserId != ownerUserId)
+            throw new ForbiddenException("You do not have access to this booking.");
 
         var payment = new Payment
         {
@@ -65,13 +68,13 @@ public class PaymentService(AppDbContext db) : IPaymentService
         var payment = await db.Payments
             .Include(p => p.Booking)
             .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Payment '{paymentId}' not found.");
+            ?? throw new NotFoundException($"Payment '{paymentId}' not found.");
 
         if (payment.PaymentStatus == PaymentStatus.Refunded)
-            throw new InvalidOperationException("Payment has already been refunded.");
+            throw new BusinessRuleException("Payment has already been refunded.");
 
         if (payment.PaymentStatus != PaymentStatus.Completed)
-            throw new InvalidOperationException("Only completed payments can be refunded.");
+            throw new BusinessRuleException("Only completed payments can be refunded.");
 
         var refund = new PaymentRefund
         {

@@ -2,7 +2,6 @@ using FlightKS.Auth;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Airports;
 using FlightKS.Services.Interfaces;
-using NodaTime;
 
 namespace FlightKS.Endpoints.V1.Admin;
 
@@ -29,66 +28,25 @@ public static class AdminAirportsEndpoints
 
     private static async Task<IResult> Create(AirportCreateDto dto, IAirportService airports, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(dto.TimeZone))
-            return TypedResults.BadRequest(new { error = "Timezone is required." });
-
-        if (!IsValidIanaTimezone(dto.TimeZone))
-            return TypedResults.BadRequest(new { error = "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London." });
-
-        try
-        {
-            var airport = await airports.CreateAsync(dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/airports/{airport.Id}", airport.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var airport = await airports.CreateAsync(dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/airports/{airport.Id}", airport.ToAdminListItem());
     }
 
     private static async Task<IResult> Update(Guid id, AirportUpdateDto dto, IAirportService airports, CancellationToken cancellationToken)
     {
-        if (dto.TimeZone is not null && !IsValidIanaTimezone(dto.TimeZone))
-            return TypedResults.BadRequest(new { error = "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London." });
-
-        try
-        {
-            var updated = await airports.UpdateAsync(id, dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await airports.UpdateAsync(id, dto.Code, dto.Name, dto.City, dto.Country, dto.TimeZone, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AirportUpdateDto dto, IAirportService airports, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await airports.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await airports.UpdateAsync(id, null, null, null, null, null, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
-
-    private static bool IsValidIanaTimezone(string id) =>
-        DateTimeZoneProviders.Tzdb.GetZoneOrNull(id) is not null;
 
     private static async Task<IResult> Delete(Guid id, IAirportService airports, CancellationToken cancellationToken)
     {
-        try
-        {
-            var deleted = await airports.DeleteAsync(id, cancellationToken);
-            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var deleted = await airports.DeleteAsync(id, cancellationToken);
+        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }
-

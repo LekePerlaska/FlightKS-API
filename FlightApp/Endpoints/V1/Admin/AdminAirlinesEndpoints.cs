@@ -1,6 +1,8 @@
 using FlightKS.Auth;
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Airlines;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
@@ -21,7 +23,8 @@ public static class AdminAirlinesEndpoints
         group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAirlineStatus");
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteAirline");
         group.MapPatch("/{id:guid}/restore", Restore).WithName("AdminRestoreAirline");
-        group.MapPost("/{id:guid}/logo", UploadLogo).WithName("AdminUploadAirlineLogo").DisableAntiforgery();
+        group.MapPost("/{id:guid}/logo", UploadLogo).WithName("AdminUploadAirlineLogo").DisableAntiforgery()
+            .AddEndpointFilter<RequireCurrentUserFilter>();
         group.MapDelete("/{id:guid}/logo", DeleteLogo).WithName("AdminDeleteAirlineLogo");
 
         return app;
@@ -35,41 +38,20 @@ public static class AdminAirlinesEndpoints
 
     private static async Task<IResult> Create(AirlineCreateDto dto, IAirlineService airlines, CancellationToken cancellationToken)
     {
-        try
-        {
-            var airline = await airlines.CreateAsync(dto.Code, dto.Name, dto.Country, dto.LogoFileId, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/airlines/{airline.Id}", airline.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var airline = await airlines.CreateAsync(dto.Code, dto.Name, dto.Country, dto.LogoFileId, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/airlines/{airline.Id}", airline.ToAdminListItem());
     }
 
     private static async Task<IResult> Update(Guid id, AirlineUpdateDto dto, IAirlineService airlines, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await airlines.UpdateAsync(id, dto.Code, dto.Name, dto.Country, dto.LogoFileId, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await airlines.UpdateAsync(id, dto.Code, dto.Name, dto.Country, dto.LogoFileId, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AirlineUpdateDto dto, IAirlineService airlines, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await airlines.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await airlines.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> Delete(Guid id, IAirlineService airlines, CancellationToken cancellationToken)
@@ -77,7 +59,7 @@ public static class AdminAirlinesEndpoints
         var existing = await airlines.GetByIdForAdminAsync(id, cancellationToken);
         if (existing is null) return TypedResults.NotFound();
         if (!existing.IsActive && existing.DeletedAt.HasValue)
-            return TypedResults.Conflict(new { error = "Airline is already deactivated." });
+            throw new BusinessRuleException("Airline is already deactivated.");
 
         var deleted = await airlines.DeleteAsync(id, cancellationToken);
         return deleted
@@ -90,7 +72,7 @@ public static class AdminAirlinesEndpoints
         var existing = await airlines.GetByIdForAdminAsync(id, cancellationToken);
         if (existing is null) return TypedResults.NotFound();
         if (existing.IsActive && existing.DeletedAt is null)
-            return TypedResults.Conflict(new { error = "Airline is already active." });
+            throw new BusinessRuleException("Airline is already active.");
 
         var restored = await airlines.RestoreAsync(id, cancellationToken);
         return restored is null ? TypedResults.NotFound() : TypedResults.Ok(restored.ToAdminListItem());
@@ -103,22 +85,17 @@ public static class AdminAirlinesEndpoints
         IWebHostEnvironment env,
         IAirlineService airlines,
         AppDbContext db,
-        ICurrentUserAccessor currentUser,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var userId = await currentUser.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
         var airline = await airlines.GetByIdForAdminAsync(id, cancellationToken);
         if (airline is null) return TypedResults.NotFound();
 
         if (!file.ContentType.StartsWith("image/"))
-            return TypedResults.BadRequest(new { error = "Only image files are allowed." });
-
+            throw new ValidationException("file", "Only image files are allowed.");
         if (file.Length > 5 * 1024 * 1024)
-            return TypedResults.BadRequest(new { error = "File size must not exceed 5 MB." });
+            throw new ValidationException("file", "File size must not exceed 5 MB.");
 
-        // Remove old logo file if it was a locally uploaded file
         if (airline.LogoFileId.HasValue)
         {
             var oldFile = await db.UploadedFiles.FindAsync([airline.LogoFileId.Value], cancellationToken);
@@ -130,7 +107,6 @@ public static class AdminAirlinesEndpoints
             }
         }
 
-        // Save the new file using the absolute path from the environment
         var ext = Path.GetExtension(file.FileName);
         var fileName = $"{Guid.NewGuid()}{ext}";
         var uploadsDir = Path.Combine(env.ContentRootPath, "wwwroot", "uploads");
@@ -140,14 +116,12 @@ public static class AdminAirlinesEndpoints
         await using (var stream = new FileStream(diskPath, FileMode.Create))
             await file.CopyToAsync(stream, cancellationToken);
 
-        // Build absolute URL so the frontend can load it directly from the API host
         var apiBase = $"{request.Scheme}://{request.Host}";
         var storagePath = $"{apiBase}/uploads/{fileName}";
 
-        // Create the UploadedFile record
         var uploadedFile = new UploadedFile
         {
-            UploadedByUserId = userId.Value,
+            UploadedByUserId = httpContext.CurrentUserId(),
             FileName = fileName,
             OriginalFileName = file.FileName,
             ContentType = file.ContentType,
@@ -182,7 +156,6 @@ public static class AdminAirlinesEndpoints
             db.UploadedFiles.Remove(logoFile);
         }
 
-        // Set LogoFileId to null on the airline
         var airlineEntity = await db.Airlines.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
         if (airlineEntity is not null)
         {
@@ -195,14 +168,12 @@ public static class AdminAirlinesEndpoints
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
-    // Returns the absolute disk path for a locally uploaded file, or null for external URLs.
     private static string? ExtractLocalUploadPath(string storagePath, string contentRootPath)
     {
-        // Stored as absolute URL: http://localhost:5194/uploads/filename.ext
         var uploadsSegment = "/uploads/";
         var idx = storagePath.IndexOf(uploadsSegment, StringComparison.OrdinalIgnoreCase);
         if (idx < 0) return null;
-        var fileName = storagePath[(idx + uploadsSegment.Length)..]; // "filename.ext"
+        var fileName = storagePath[(idx + uploadsSegment.Length)..];
         return Path.Combine(contentRootPath, "wwwroot", "uploads", fileName);
     }
 }

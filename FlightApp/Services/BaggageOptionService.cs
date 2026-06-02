@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -29,11 +30,11 @@ public class BaggageOptionService(AppDbContext db) : IBaggageOptionService
     {
         name = name.Trim();
         if (string.IsNullOrWhiteSpace(name))
-            throw new InvalidOperationException("Name is required.");
+            throw new ValidationException("name", "Name is required.");
         if (weightKg < 0)
-            throw new InvalidOperationException("Weight cannot be negative.");
+            throw new ValidationException("weightKg", "Weight cannot be negative.");
         if (price < 0)
-            throw new InvalidOperationException("Price cannot be negative.");
+            throw new ValidationException("price", "Price cannot be negative.");
 
         var option = new BaggageOption
         {
@@ -54,15 +55,15 @@ public class BaggageOptionService(AppDbContext db) : IBaggageOptionService
         if (option is null) return null;
 
         if (weightKg is < 0)
-            throw new InvalidOperationException("Weight cannot be negative.");
+            throw new ValidationException("weightKg", "Weight cannot be negative.");
         if (price is < 0)
-            throw new InvalidOperationException("Price cannot be negative.");
+            throw new ValidationException("price", "Price cannot be negative.");
 
         if (name is not null)
         {
             var trimmed = name.Trim();
             if (string.IsNullOrWhiteSpace(trimmed))
-                throw new InvalidOperationException("Name is required.");
+                throw new ValidationException("name", "Name is required.");
             option.Name = trimmed;
         }
         if (weightKg is not null) option.WeightKg = weightKg.Value;

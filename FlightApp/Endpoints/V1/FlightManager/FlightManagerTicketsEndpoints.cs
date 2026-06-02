@@ -18,16 +18,9 @@ public static class FlightManagerTicketsEndpoints
 
     private static async Task<IResult> CheckIn(Guid ticketId, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
-        try
-        {
-            var ticket = await flightManager.CheckInTicketAsync(ticketId, cancellationToken);
-            return ticket is null
-                ? TypedResults.NotFound()
-                : TypedResults.Ok(new { ticketId = ticket.Id, status = ticket.TicketStatus });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var ticket = await flightManager.CheckInTicketAsync(ticketId, cancellationToken);
+        return ticket is null
+            ? TypedResults.NotFound()
+            : TypedResults.Ok(new { ticketId = ticket.Id, status = ticket.TicketStatus });
     }
 }

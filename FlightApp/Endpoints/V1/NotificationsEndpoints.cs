@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Notifications;
 using FlightKS.Services.Interfaces;
 
@@ -9,7 +10,9 @@ public static class NotificationsEndpoints
 {
     public static IEndpointRouteBuilder MapNotificationsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/notifications").WithTags("Notifications").RequireAuthorization();
+        var group = app.MapGroup("/notifications").WithTags("Notifications")
+            .RequireAuthorization()
+            .RequireCurrentUser();
 
         group.MapGet("/", GetAll).WithName("GetNotifications");
         group.MapGet("/{notificationId:guid}", GetById).WithName("GetNotificationById");
@@ -20,48 +23,33 @@ public static class NotificationsEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(ICurrentUserAccessor current, INotificationService notifications, CancellationToken cancellationToken, bool? unreadOnly = null)
+    private static async Task<IResult> GetAll(HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken, bool? unreadOnly = null)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var list = await notifications.GetForUserAsync(userId.Value, unreadOnly, cancellationToken);
+        var list = await notifications.GetForUserAsync(httpContext.CurrentUserId(), unreadOnly, cancellationToken);
         return TypedResults.Ok(list.Select(n => n.ToDto()));
     }
 
-    private static async Task<IResult> GetById(Guid notificationId, ICurrentUserAccessor current, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> GetById(Guid notificationId, HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var notif = await notifications.GetByIdAsync(notificationId, userId.Value, cancellationToken);
+        var notif = await notifications.GetByIdAsync(notificationId, httpContext.CurrentUserId(), cancellationToken);
         return notif is null ? TypedResults.NotFound() : TypedResults.Ok(notif.ToDto());
     }
 
-    private static async Task<IResult> Update(Guid notificationId, NotificationUpdateDto dto, ICurrentUserAccessor current, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> Update(Guid notificationId, NotificationUpdateDto dto, HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var updated = await notifications.MarkReadAsync(notificationId, userId.Value, dto.IsRead, cancellationToken);
+        var updated = await notifications.MarkReadAsync(notificationId, httpContext.CurrentUserId(), dto.IsRead, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
     }
 
-    private static async Task<IResult> MarkAllRead(ICurrentUserAccessor current, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> MarkAllRead(HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var count = await notifications.MarkAllReadAsync(userId.Value, cancellationToken);
+        var count = await notifications.MarkAllReadAsync(httpContext.CurrentUserId(), cancellationToken);
         return TypedResults.Ok(new { updatedCount = count });
     }
 
-    private static async Task<IResult> Delete(Guid notificationId, ICurrentUserAccessor current, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> Delete(Guid notificationId, HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var deleted = await notifications.DeleteAsync(notificationId, userId.Value, cancellationToken);
+        var deleted = await notifications.DeleteAsync(notificationId, httpContext.CurrentUserId(), cancellationToken);
         return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }

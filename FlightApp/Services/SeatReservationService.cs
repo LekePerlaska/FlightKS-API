@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Hubs;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
@@ -32,20 +33,22 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
         TimeSpan? holdFor = null,
         CancellationToken cancellationToken = default)
     {
-        _ = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken)
-            ?? throw new InvalidOperationException($"Booking '{bookingId}' not found for this user.");
+        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken)
+            ?? throw new NotFoundException($"Booking '{bookingId}' not found.");
+        if (booking.UserId != ownerUserId)
+            throw new ForbiddenException("You do not have access to this booking.");
 
         _ = await db.Passengers.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == passengerId && p.BookingId == bookingId, cancellationToken)
-            ?? throw new InvalidOperationException($"Passenger '{passengerId}' not part of booking '{bookingId}'.");
+            ?? throw new NotFoundException($"Passenger '{passengerId}' not found in booking '{bookingId}'.");
 
         var segment = await db.ItinerarySegments.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == itinerarySegmentId, cancellationToken)
-            ?? throw new InvalidOperationException($"Itinerary segment '{itinerarySegmentId}' not found.");
+            ?? throw new NotFoundException($"Itinerary segment '{itinerarySegmentId}' not found.");
 
         var schedule = await db.FlightSchedules.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == segment.FlightScheduleId, cancellationToken)
-            ?? throw new InvalidOperationException("Flight schedule not found.");
+            ?? throw new NotFoundException($"Flight schedule '{segment.FlightScheduleId}' not found.");
 
         var flightSeat = await db.FlightSeats
             .Include(fs => fs.Seat)
@@ -55,7 +58,7 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
         {
             var aircraftSeat = await db.Seats.AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == seatId && s.AircraftId == schedule.AircraftId, cancellationToken)
-                ?? throw new InvalidOperationException($"Seat '{seatId}' not found on this flight's aircraft.");
+                ?? throw new NotFoundException($"Seat '{seatId}' not found on this flight's aircraft.");
 
             var classPrice = await db.FlightSchedulePrices.AsNoTracking()
                 .Where(p => p.FlightScheduleId == segment.FlightScheduleId && p.SeatClass == aircraftSeat.SeatClass)
@@ -75,7 +78,7 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
         }
 
         if (flightSeat.Status != FlightSeatStatus.Available)
-            throw new InvalidOperationException("This seat is no longer available.");
+            throw new ConflictException("This seat is no longer available.");
 
         flightSeat.Status = FlightSeatStatus.Reserved;
         flightSeat.ReservedUntil = DateTime.UtcNow.Add(holdFor ?? DefaultHold);

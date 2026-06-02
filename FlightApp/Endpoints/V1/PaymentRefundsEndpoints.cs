@@ -20,21 +20,10 @@ public static class PaymentRefundsEndpoints
         IPaymentService payments,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var refund = await payments.CreateRefundAsync(paymentId, dto.Amount, dto.Reason, cancellationToken);
-            return TypedResults.Created(
-                $"/api/v1/payments/{paymentId}/refunds/{refund.Id}",
-                new { refund.Id, refund.PaymentId, refund.Amount, refund.Reason, refund.RefundStatus, refund.CreatedAt });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return TypedResults.NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var refund = await payments.CreateRefundAsync(paymentId, dto.Amount, dto.Reason, cancellationToken);
+        return TypedResults.Created(
+            $"/api/v1/payments/{paymentId}/refunds/{refund.Id}",
+            new { refund.Id, refund.PaymentId, refund.Amount, refund.Reason, refund.RefundStatus, refund.CreatedAt });
     }
 }
 

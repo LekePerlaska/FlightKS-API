@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +26,7 @@ public class PassengerService(AppDbContext db) : IPassengerService
         string? nationality = null,
         CancellationToken cancellationToken = default)
     {
-        await EnsureOwnedAsync(bookingId, ownerUserId, cancellationToken);
+        await EnsureBookingOwnedAsync(bookingId, ownerUserId, cancellationToken);
 
         var passenger = new Passenger
         {
@@ -71,10 +72,13 @@ public class PassengerService(AppDbContext db) : IPassengerService
         return passenger;
     }
 
-    private async Task EnsureOwnedAsync(Guid bookingId, Guid userId, CancellationToken cancellationToken)
+    private async Task EnsureBookingOwnedAsync(Guid bookingId, Guid userId, CancellationToken cancellationToken)
     {
-        var owned = await db.Bookings.AsNoTracking()
-            .AnyAsync(b => b.Id == bookingId && b.UserId == userId, cancellationToken);
-        if (!owned) throw new InvalidOperationException($"Booking '{bookingId}' not found for this user.");
+        var booking = await db.Bookings.AsNoTracking()
+            .Select(b => new { b.Id, b.UserId })
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken)
+            ?? throw new NotFoundException($"Booking '{bookingId}' not found.");
+        if (booking.UserId != userId)
+            throw new ForbiddenException("You do not have access to this booking.");
     }
 }

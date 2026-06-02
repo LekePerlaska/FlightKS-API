@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -36,10 +37,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
         if (seatClass is { } cls)
         {
-            // Every segment must have at least `passengers` seats of the chosen
-            // class still available: (class seats on the aircraft) − (class
-            // FlightSeats already taken). FlightSeat rows exist only once a seat
-            // is reserved/booked, so the subtraction yields true availability.
             query = query.Where(i => i.Segments.All(s =>
                 db.Seats.Count(st =>
                     st.AircraftId == s.FlightSchedule.AircraftId &&
@@ -100,24 +97,21 @@ public class ItineraryService(AppDbContext db) : IItineraryService
     public async Task<Itinerary> CreateFromSchedulesAsync(List<Guid> flightScheduleIds, CancellationToken cancellationToken = default)
     {
         if (flightScheduleIds is null || flightScheduleIds.Count == 0)
-            throw new InvalidOperationException("An itinerary must contain at least one flight schedule.");
+            throw new ValidationException("flightScheduleIds", "An itinerary must contain at least one flight schedule.");
         if (flightScheduleIds.Distinct().Count() != flightScheduleIds.Count)
-            throw new InvalidOperationException("An itinerary cannot use the same flight schedule twice.");
+            throw new ValidationException("flightScheduleIds", "An itinerary cannot use the same flight schedule twice.");
 
-        // Load every schedule in the order the admin selected them.
         var schedules = new List<FlightSchedule>(flightScheduleIds.Count);
         foreach (var scheduleId in flightScheduleIds)
         {
             var schedule = await LoadSegmentScheduleAsync(scheduleId, cancellationToken)
-                ?? throw new InvalidOperationException($"Scheduled flight '{scheduleId}' is not available for itineraries.");
+                ?? throw new NotFoundException($"Scheduled flight '{scheduleId}' is not available.");
             schedules.Add(schedule);
         }
 
-        // The journey's endpoints come from the first and last legs.
         var originId = schedules[0].Flight.OriginAirportId;
         var destId = schedules[^1].Flight.DestinationAirportId;
 
-        // Layover after each leg is simply the gap until the next one departs.
         var candidates = new List<SegmentCandidate>(schedules.Count);
         for (var i = 0; i < schedules.Count; i++)
         {
@@ -186,9 +180,9 @@ public class ItineraryService(AppDbContext db) : IItineraryService
     public async Task<ItinerarySegment> AddSegmentAsync(Guid itineraryId, Guid scheduleId, int segmentOrder, int? layoverMinutes, CancellationToken cancellationToken = default)
     {
         var itinerary = await LoadEditableItineraryAsync(itineraryId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Itinerary '{itineraryId}' not found.");
+            ?? throw new NotFoundException($"Itinerary '{itineraryId}' not found.");
         var schedule = await LoadSegmentScheduleAsync(scheduleId, cancellationToken)
-            ?? throw new InvalidOperationException($"Scheduled flight '{scheduleId}' not found.");
+            ?? throw new NotFoundException($"Scheduled flight '{scheduleId}' not found.");
 
         ValidateLayover(layoverMinutes);
         var candidates = itinerary.Segments
@@ -237,7 +231,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         if (scheduleId is not null)
         {
             replacementSchedule = await LoadSegmentScheduleAsync(scheduleId.Value, cancellationToken)
-                ?? throw new InvalidOperationException($"Scheduled flight '{scheduleId}' not found.");
+                ?? throw new NotFoundException($"Scheduled flight '{scheduleId}' not found.");
         }
 
         var nextOrder = segmentOrder ?? segment.SegmentOrder;
@@ -343,7 +337,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
     private static void ValidateLayover(int? layoverMinutes)
     {
         if (layoverMinutes is < 0)
-            throw new InvalidOperationException("Layover minutes cannot be negative.");
+            throw new ValidationException("layoverMinutes", "Layover minutes cannot be negative.");
     }
 
     private static void ValidateSegmentChain(
@@ -357,26 +351,26 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         if (candidates.Count == 0) return;
 
         if (candidates.Any(s => s.SegmentOrder < 1))
-            throw new InvalidOperationException("Segment order must be at least 1.");
+            throw new ValidationException("segmentOrder", "Segment order must be at least 1.");
 
         var ordered = candidates.OrderBy(s => s.SegmentOrder).ToList();
         if (ordered.Select(s => s.SegmentOrder).Distinct().Count() != ordered.Count)
-            throw new InvalidOperationException("Segment order must be unique within an itinerary.");
+            throw new ValidationException("segmentOrder", "Segment order must be unique within an itinerary.");
 
         for (var i = 0; i < ordered.Count; i++)
         {
             if (ordered[i].SegmentOrder != i + 1)
-                throw new InvalidOperationException("Segment order must be continuous starting at 1.");
+                throw new ValidationException("segmentOrder", "Segment order must be continuous starting at 1.");
         }
 
         if (ordered[0].Schedule.Flight.OriginAirportId != itineraryOriginId)
-            throw new InvalidOperationException("First segment origin must match the itinerary origin.");
+            throw new ValidationException("segments", "First segment origin must match the itinerary origin.");
 
         if (ordered[^1].Schedule.Flight.DestinationAirportId != itineraryDestinationId)
-            throw new InvalidOperationException("Last segment destination must match the itinerary destination.");
+            throw new ValidationException("segments", "Last segment destination must match the itinerary destination.");
 
         if (enforceTimeWindow && (ordered[0].Schedule.DepartureTime < itineraryDeparture || ordered[^1].Schedule.ArrivalTime > itineraryArrival))
-            throw new InvalidOperationException("Segment times must fit inside the itinerary time window.");
+            throw new ValidationException("segments", "Segment times must fit inside the itinerary time window.");
 
         for (var i = 0; i < ordered.Count - 1; i++)
         {
@@ -384,18 +378,18 @@ public class ItineraryService(AppDbContext db) : IItineraryService
             var next = ordered[i + 1];
 
             if (current.Schedule.Flight.DestinationAirportId != next.Schedule.Flight.OriginAirportId)
-                throw new InvalidOperationException("Segments must connect destination-to-origin in order.");
+                throw new ValidationException("segments", "Segments must connect destination-to-origin in order.");
 
             if (next.Schedule.DepartureTime < current.Schedule.ArrivalTime)
-                throw new InvalidOperationException("Next segment cannot depart before the previous segment arrives.");
+                throw new ValidationException("segments", "Next segment cannot depart before the previous segment arrives.");
 
             var actualLayover = (int)Math.Round((next.Schedule.DepartureTime - current.Schedule.ArrivalTime).TotalMinutes);
             if (current.LayoverMinutesAfterSegment is not null && current.LayoverMinutesAfterSegment != actualLayover)
-                throw new InvalidOperationException("Layover minutes must match the time between consecutive segments.");
+                throw new ValidationException("layoverMinutes", "Layover minutes must match the time between consecutive segments.");
         }
 
         if (ordered[^1].LayoverMinutesAfterSegment is not null)
-            throw new InvalidOperationException("The last segment cannot have a layover after it.");
+            throw new ValidationException("layoverMinutes", "The last segment cannot have a layover after it.");
     }
 
     private static void SyncItineraryFromSegments(Itinerary itinerary, IReadOnlyCollection<SegmentCandidate> candidates)

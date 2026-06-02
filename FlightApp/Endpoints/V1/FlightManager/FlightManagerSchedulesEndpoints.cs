@@ -1,7 +1,8 @@
 using System.Text;
 using FlightKS.Auth;
-using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.FlightManager;
 using FlightKS.Models.Dtos.FlightSchedules;
 using FlightKS.Models.Entities;
@@ -17,7 +18,7 @@ public static class FlightManagerSchedulesEndpoints
             .WithTags("FlightManagerSchedules")
             .RequireAuthorization(Policies.FlightManager);
 
-        group.MapGet("/", GetAll).WithName("FlightManagerGetSchedules");
+        group.MapGet("/", GetAll).WithName("FlightManagerGetSchedules").AddEndpointFilter<RequireCurrentUserFilter>();
         group.MapPatch("/{scheduleId:guid}", Patch).WithName("FlightManagerPatchSchedule");
         group.MapGet("/{scheduleId:guid}/passengers", Passengers).WithName("FlightManagerSchedulePassengers");
         group.MapGet("/{scheduleId:guid}/flight-seats", Seats).WithName("FlightManagerScheduleSeats");
@@ -28,12 +29,9 @@ public static class FlightManagerSchedulesEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(ICurrentUserAccessor current, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAll(HttpContext httpContext, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var list = await schedules.GetForFlightManagerAsync(userId.Value, cancellationToken);
+        var list = await schedules.GetForFlightManagerAsync(httpContext.CurrentUserId(), cancellationToken);
         return TypedResults.Ok(list.Select(s => s.ToManagerListItem()));
     }
 
@@ -58,27 +56,18 @@ public static class FlightManagerSchedulesEndpoints
 
     private static async Task<IResult> SetSeatStatus(Guid scheduleId, Guid seatId, FlightManagerSeatStatusUpdateDto dto, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await flightManager.SetSeatStatusAsync(scheduleId, seatId, dto.Status, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await flightManager.SetSeatStatusAsync(scheduleId, seatId, dto.Status, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated);
     }
 
     private static async Task<IResult> Notify(Guid scheduleId, NotifyPassengersDto dto, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dto.Message))
-            return TypedResults.BadRequest(new { error = "A message is required." });
+            throw new ValidationException("message", "A message is required.");
 
         var title = string.IsNullOrWhiteSpace(dto.Title) ? "Flight update" : dto.Title.Trim();
         var notified = await flightManager.NotifySchedulePassengersAsync(scheduleId, title, dto.Message.Trim(), cancellationToken);
-        return notified is null
-            ? TypedResults.NotFound()
-            : TypedResults.Ok(new { notified });
+        return notified is null ? TypedResults.NotFound() : TypedResults.Ok(new { notified });
     }
 
     private static async Task<IResult> ExportManifest(Guid scheduleId, IFlightScheduleService schedules, CancellationToken cancellationToken)

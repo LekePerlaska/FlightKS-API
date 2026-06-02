@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -37,11 +38,11 @@ public class AirlineService(AppDbContext db) : IAirlineService
 
         var codeExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Code.ToLower() == code.ToLower(), cancellationToken);
-        if (codeExists) throw new InvalidOperationException($"Airline code '{code}' is already in use.");
+        if (codeExists) throw new ConflictException($"Airline code '{code}' is already in use.");
 
         var nameExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Name.ToLower() == name.ToLower(), cancellationToken);
-        if (nameExists) throw new InvalidOperationException($"Airline name '{name}' is already in use.");
+        if (nameExists) throw new ConflictException($"Airline name '{name}' is already in use.");
 
         var airline = new Airline { Code = code, Name = name, Country = country, LogoFileId = logoFileId };
         db.Airlines.Add(airline);
@@ -63,14 +64,14 @@ public class AirlineService(AppDbContext db) : IAirlineService
         {
             var codeExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(a => a.Id != id && a.Code.ToLower() == code.ToLower(), cancellationToken);
-            if (codeExists) throw new InvalidOperationException($"Airline code '{code}' is already in use.");
+            if (codeExists) throw new ConflictException($"Airline code '{code}' is already in use.");
         }
 
         if (name is not null)
         {
             var nameExists = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(a => a.Id != id && a.Name.ToLower() == name.ToLower(), cancellationToken);
-            if (nameExists) throw new InvalidOperationException($"Airline name '{name}' is already in use.");
+            if (nameExists) throw new ConflictException($"Airline name '{name}' is already in use.");
         }
 
         if (code is not null) airline.Code = code;

@@ -37,60 +37,32 @@ public static class AdminFlightSchedulesEndpoints
 
     private static async Task<IResult> Create(FlightScheduleCreateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
-        try
-        {
-            var schedule = await schedules.CreateAsync(
-                dto.FlightId, dto.AircraftId, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.Gate, ToPriceMap(dto.ClassPrices), cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/flight-schedules/{schedule.Id}", schedule.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var schedule = await schedules.CreateAsync(
+            dto.FlightId, dto.AircraftId, dto.DepartureTime, dto.ArrivalTime,
+            dto.CurrentPrice, dto.Gate, ToPriceMap(dto.ClassPrices), cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/flight-schedules/{schedule.Id}", schedule.ToAdminListItem());
     }
 
     private static async Task<IResult> Update(Guid id, FlightScheduleUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await schedules.UpdateAsync(
-                id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await schedules.UpdateAsync(
+            id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
+            dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> UpdateStatus(Guid id, FlightScheduleUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await schedules.UpdateAsync(
-                id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
-                dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await schedules.UpdateAsync(
+            id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
+            dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> Delete(Guid id, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
-        try
-        {
-            var deleted = await schedules.DeleteAsync(id, cancellationToken);
-            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var deleted = await schedules.DeleteAsync(id, cancellationToken);
+        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 
     private static async Task<IResult> GetSeats(Guid id, IFlightScheduleService schedules, CancellationToken cancellationToken)
