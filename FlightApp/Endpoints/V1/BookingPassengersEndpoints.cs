@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Passengers;
 using FlightKS.Services.Interfaces;
 
@@ -11,7 +12,8 @@ public static class BookingPassengersEndpoints
     {
         var group = app.MapGroup("/bookings/{bookingId:guid}/passengers")
             .WithTags("BookingPassengers")
-            .RequireAuthorization(Policies.User);
+            .RequireAuthorization(Policies.User)
+            .RequireCurrentUser();
 
         group.MapPost("/", Add).WithName("AddBookingPassenger");
         group.MapPut("/", BulkUpdate).WithName("BulkUpdateBookingPassengers");
@@ -19,39 +21,27 @@ public static class BookingPassengersEndpoints
         return app;
     }
 
-    private static async Task<IResult> Add(Guid bookingId, PassengerCreateDto dto, ICurrentUserAccessor current, IPassengerService passengers, CancellationToken cancellationToken)
+    private static async Task<IResult> Add(Guid bookingId, PassengerCreateDto dto, HttpContext httpContext, IPassengerService passengers, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        try
-        {
-            var passenger = await passengers.AddAsync(
-                bookingId, userId.Value, dto.FirstName, dto.LastName, dto.DateOfBirth,
-                dto.Gender, dto.PassportNumber, dto.Nationality, cancellationToken);
-            return TypedResults.Created($"/api/v1/bookings/{bookingId}/passengers/{passenger.Id}", passenger.ToResponse());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var passenger = await passengers.AddAsync(
+            bookingId, httpContext.CurrentUserId(), dto.FirstName, dto.LastName, dto.DateOfBirth,
+            dto.Gender, dto.PassportNumber, dto.Nationality, cancellationToken);
+        return TypedResults.Created($"/api/v1/bookings/{bookingId}/passengers/{passenger.Id}", passenger.ToResponse());
     }
 
-    private static async Task<IResult> BulkUpdate(Guid bookingId, PassengerBulkUpdateItemDto[] items, ICurrentUserAccessor current, IPassengerService passengers, CancellationToken cancellationToken)
+    private static async Task<IResult> BulkUpdate(Guid bookingId, PassengerBulkUpdateItemDto[] items, HttpContext httpContext, IPassengerService passengers, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
+        var userId = httpContext.CurrentUserId();
         var results = new List<object>();
         foreach (var item in items)
         {
             var updated = await passengers.UpdateAsync(
-                bookingId, item.Id, userId.Value,
+                bookingId, item.Id, userId,
                 item.FirstName, item.LastName, item.DateOfBirth,
                 item.Gender, item.PassportNumber, item.Nationality,
                 cancellationToken);
             if (updated is null)
-                return TypedResults.NotFound(new { error = $"Passenger '{item.Id}' not found." });
+                return TypedResults.NotFound();
             results.Add(updated.ToResponse());
         }
         return TypedResults.Ok(results);

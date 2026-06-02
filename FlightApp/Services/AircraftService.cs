@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Dtos.Aircrafts;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
@@ -30,11 +31,11 @@ public class AircraftService(AppDbContext db) : IAircraftService
         registrationNumber = registrationNumber.Trim().ToUpperInvariant();
 
         var airline = await db.Airlines.FirstOrDefaultAsync(a => a.Id == airlineId && a.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException($"Airline '{airlineId}' not found.");
+            ?? throw new NotFoundException($"Active airline '{airlineId}' not found.");
 
         var regExists = await db.Aircrafts.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.RegistrationNumber.ToLower() == registrationNumber.ToLower(), cancellationToken);
-        if (regExists) throw new InvalidOperationException($"Aircraft registration '{registrationNumber}' is already in use.");
+        if (regExists) throw new ConflictException($"Aircraft registration '{registrationNumber}' is already in use.");
 
         var aircraft = new Aircraft
         {
@@ -62,14 +63,14 @@ public class AircraftService(AppDbContext db) : IAircraftService
         {
             var airlineExists = await db.Airlines.AsNoTracking()
                 .AnyAsync(a => a.Id == airlineId && a.IsActive, cancellationToken);
-            if (!airlineExists) throw new InvalidOperationException($"Active airline '{airlineId}' not found.");
+            if (!airlineExists) throw new NotFoundException($"Active airline '{airlineId}' not found.");
         }
 
         if (registrationNumber is not null)
         {
             var regExists = await db.Aircrafts.IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(a => a.Id != id && a.RegistrationNumber.ToLower() == registrationNumber.ToLower(), cancellationToken);
-            if (regExists) throw new InvalidOperationException($"Aircraft registration '{registrationNumber}' is already in use.");
+            if (regExists) throw new ConflictException($"Aircraft registration '{registrationNumber}' is already in use.");
         }
 
         if (airlineId is not null) aircraft.AirlineId = airlineId.Value;
@@ -95,7 +96,7 @@ public class AircraftService(AppDbContext db) : IAircraftService
         var isAssignedToSchedule = await db.FlightSchedules.AsNoTracking()
             .AnyAsync(s => s.AircraftId == id, cancellationToken);
         if (isAssignedToSchedule)
-            throw new InvalidOperationException("Cannot delete an aircraft that is assigned to flight schedules.");
+            throw new BusinessRuleException("Cannot delete an aircraft that is assigned to flight schedules.");
 
         aircraft.DeletedAt = DateTime.UtcNow;
         aircraft.IsActive = false;
@@ -116,13 +117,11 @@ public class AircraftService(AppDbContext db) : IAircraftService
     {
         var aircraft = await db.Aircrafts.IgnoreQueryFilters()
             .FirstOrDefaultAsync(a => a.Id == aircraftId, cancellationToken)
-            ?? throw new KeyNotFoundException("Aircraft not found.");
+            ?? throw new NotFoundException($"Aircraft '{aircraftId}' not found.");
 
         var requestedSeatNumbers = seatDtos.Select(s => s.SeatNumber).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (requestedSeatNumbers.Count != seatDtos.Count)
-        {
-            throw new InvalidOperationException("Seat numbers must be unique within the generated layout.");
-        }
+            throw new ValidationException("seatNumbers", "Seat numbers must be unique within the generated layout.");
 
         var existing = await db.Seats.IgnoreQueryFilters()
             .Where(s => s.AircraftId == aircraftId)

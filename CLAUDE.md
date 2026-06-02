@@ -4,20 +4,54 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+The host SDK is .NET 8.0 but this project targets **.NET 10.0**, so builds and runs go through Docker, not the host `dotnet` CLI.
+
 ```bash
-dotnet build              # Build the project
-dotnet run                # Run the dev server (HTTP: http://localhost:5194, Swagger UI at /swagger)
-dotnet clean              # Clean build artifacts
+docker compose build api      # Build the API image (SDK 10 in-container)
+docker compose up -d          # Start the full stack (api, postgres, keycloak, loki, grafana, frontend)
+docker compose up -d api      # Start just the API (+ its dependencies)
+docker compose down           # Stop and remove containers (named volumes are preserved)
+docker compose logs -f api    # Tail API logs
 ```
 
-There are currently no test projects. The file `FlightApp/FlightKS.http` contains sample API requests usable with the VS Code REST Client extension.
+Requires a `.env` file (see `.env.example`) for Postgres/Keycloak credentials.
+
+Service URLs once up:
+- API: `http://localhost:5194` (in-container port 5194)
+- API docs (Scalar): `http://localhost:5194/scalar/v1`; OpenAPI JSON at `/openapi/v1.json`
+- Keycloak: `http://localhost:8080` (realm `flightks`)
+- Grafana: `http://localhost:3001` (Loki datasource provisioned)
+- Frontend (Next.js): `http://localhost:3000` (mounted from `../flightks-client/flightks-client`)
+- Postgres: host port `5433`
+
+EF Core migrations are generated via an SDK 10 container (not the host); the app applies pending migrations on startup via `MigrateAsync` in `Program.cs`.
+
+There are currently no test projects. `FlightApp/FlightKS.http` contains sample API requests for the VS Code REST Client extension.
 
 ## Architecture
 
-This is an early-stage **ASP.NET Core 10.0 Web API** project using the minimal hosting model (no `Startup.cs`). The entire app bootstrap lives in `FlightApp/Program.cs`.
+An **ASP.NET Core 10.0 Web API** (minimal hosting model, no `Startup.cs`) for a flight-booking platform. The entire bootstrap lives in `FlightApp/Program.cs`. All HTTP endpoints are versioned under **`/api/v1`**.
 
 - **Framework:** .NET 10.0, C# 14, nullable reference types enabled
-- **API docs:** Swagger UI served at `/swagger` in development via Swashbuckle (6.6.2)
-- **Solution file:** `FlightKS.sln` at the repo root; the single project is under `FlightApp/`
+- **Database:** PostgreSQL via EF Core 10 + Npgsql. snake_case naming (`EFCore.NamingConventions`), 8 native PG enums mapped on both the data source and the EF `UseNpgsql` callback, soft-delete query filters (`DeletedAt`), and `gen_random_uuid()` Guid PKs. Schema config is per-entity in `FlightApp/Data/DBContext.cs`; `AppDbContextDesignTimeFactory` lets EF tooling build the context without running startup.
+- **Auth:** Keycloak JWT bearer (realm `flightks`). `KeycloakRoleClaimsTransformer` maps `realm_access.roles` → role claims; `ICurrentUserAccessor`/`CurrentUserAccessor` resolves the Keycloak `sub` to a local `User` (via `KeycloakUserId`). Three role policies in `FlightApp/Auth/Policies.cs`: **User**, **Admin**, **FlightManager**. Issuer/audience validation is disabled because tokens come from `localhost:8080` while the in-Docker authority is `keycloak:8080`; `KeycloakBackchannelHandler` rewrites the JWKS URI inside Docker.
+- **Real-time:** three SignalR hubs — `/hubs/seats`, `/hubs/notifications`, `/hubs/admin-dashboard`. Hub auth reads the token from an `access_token` query-string param.
+- **API docs:** Scalar + native OpenAPI (`AddOpenApi`/`MapScalarApiReference`), dev-only. Swagger/Swashbuckle was removed (incompatible with .NET 10).
+- **Observability:** Serilog → console + Grafana Loki sink.
+- **Files:** uploads are written under `wwwroot/uploads` and served as static files.
+- **Solution:** `FlightKS.sln` at the repo root; the single project is `FlightApp/`.
 
-CRUD endpoints for Flights and Users are exposed under `/api/flights` and `/api/users` via minimal-API endpoint groups (`FlightApp/Endpoints/`). Services live in `FlightApp/Services/` and are wired in `Program.cs`.
+### Layout
+
+- `FlightApp/Endpoints/V1/` — public + authenticated-user minimal-API endpoint groups (auth, users, airports, airlines, flights, itineraries, baggage, bookings, passengers, seat reservations, payments, refunds, tickets, notifications, timezones). Subfolders `Admin/` and `FlightManager/` hold the role-gated endpoint groups. Files are named after their would-be MVC controllers. Each group is a `MapXxxEndpoints` extension wired in `Program.cs` onto the `/api/v1` group.
+- `FlightApp/Services/` + `Services/Interfaces/` — business logic, one service per domain, all registered scoped in `Program.cs`.
+- `FlightApp/Models/Entities/` — EF entities (~24). `Models/Dtos/` — request/response records grouped by domain. `Models/Config/`, `Models/Pricing/`.
+- `FlightApp/Mappers/` — entity → DTO extension methods.
+- `FlightApp/Enums/` — one enum per file (`FlightKS.Enums`); PG-backed enums are registered in both `Program.cs` (`MapEnum`) and `DBContext.cs` (`HasPostgresEnum`).
+- `FlightApp/Migrations/`, `FlightApp/Hubs/`, `FlightApp/Auth/`.
+
+### Domain model
+
+Catalog (Airline, Airport with timezone, Aircraft, Seat) → Scheduling (Flight route, FlightSchedule, per-cabin FlightSchedulePrice, FlightSeat, multi-leg Itinerary + ItinerarySegment) → Booking flow (Booking → Passenger → Ticket → Payment → PaymentRefund, plus BaggageOption / BookingBaggage). Platform entities: Notification, UploadedFile, FeatureFlag, AdminLog, AuditLog (jsonb), AiSearchDocument.
+
+When adding a new feature, the typical path is: entity (+ `DBContext.cs` config) → migration → DTOs → mapper → service (+ interface, registered in `Program.cs`) → endpoint group (+ `MapXxxEndpoints` in `Program.cs`, with `RequireAuthorization(Policies.*)` if protected).

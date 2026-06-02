@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.BaggageOptions;
 using FlightKS.Services.Interfaces;
@@ -29,41 +30,20 @@ public static class AdminBaggageOptionsEndpoints
 
     private static async Task<IResult> Create(BaggageOptionCreateDto dto, IBaggageOptionService baggage, CancellationToken cancellationToken)
     {
-        try
-        {
-            var option = await baggage.CreateAsync(dto.Name, dto.WeightKg, dto.Price, dto.Description, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/baggage-options/{option.Id}", option.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var option = await baggage.CreateAsync(dto.Name, dto.WeightKg, dto.Price, dto.Description, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/baggage-options/{option.Id}", option.ToAdminListItem());
     }
 
     private static async Task<IResult> Update(Guid id, BaggageOptionUpdateDto dto, IBaggageOptionService baggage, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await baggage.UpdateAsync(id, dto.Name, dto.WeightKg, dto.Price, dto.Description, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await baggage.UpdateAsync(id, dto.Name, dto.WeightKg, dto.Price, dto.Description, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, BaggageOptionUpdateDto dto, IBaggageOptionService baggage, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await baggage.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await baggage.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
     private static async Task<IResult> Delete(Guid id, IBaggageOptionService baggage, CancellationToken cancellationToken)
@@ -71,7 +51,7 @@ public static class AdminBaggageOptionsEndpoints
         var existing = await baggage.GetByIdForAdminAsync(id, cancellationToken);
         if (existing is null) return TypedResults.NotFound();
         if (!existing.IsActive && existing.DeletedAt.HasValue)
-            return TypedResults.Conflict(new { error = "Baggage option is already deactivated." });
+            throw new BusinessRuleException("Baggage option is already deactivated.");
 
         var deleted = await baggage.DeleteAsync(id, cancellationToken);
         return deleted
@@ -84,7 +64,7 @@ public static class AdminBaggageOptionsEndpoints
         var existing = await baggage.GetByIdForAdminAsync(id, cancellationToken);
         if (existing is null) return TypedResults.NotFound();
         if (existing.IsActive && existing.DeletedAt is null)
-            return TypedResults.Conflict(new { error = "Baggage option is already active." });
+            throw new BusinessRuleException("Baggage option is already active.");
 
         var restored = await baggage.RestoreAsync(id, cancellationToken);
         return restored is null ? TypedResults.NotFound() : TypedResults.Ok(restored.ToAdminListItem());

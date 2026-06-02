@@ -1,6 +1,7 @@
 using System.Text;
 using FlightKS.Auth;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 
@@ -12,7 +13,8 @@ public static class TicketsEndpoints
     {
         var group = app.MapGroup("/tickets")
             .WithTags("Tickets")
-            .RequireAuthorization(Policies.User);
+            .RequireAuthorization(Policies.User)
+            .RequireCurrentUser();
 
         group.MapGet("/{ticketId:guid}", GetById).WithName("GetTicket");
         group.MapGet("/{ticketId:guid}/download", Download).WithName("DownloadTicket");
@@ -20,29 +22,21 @@ public static class TicketsEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetById(Guid ticketId, ICurrentUserAccessor current, ITicketService tickets, CancellationToken cancellationToken)
+    private static async Task<IResult> GetById(Guid ticketId, HttpContext httpContext, ITicketService tickets, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var ticket = await tickets.GetByIdAsync(ticketId, userId.Value, cancellationToken);
+        var ticket = await tickets.GetByIdAsync(ticketId, httpContext.CurrentUserId(), cancellationToken);
         return ticket is null
-            ? TypedResults.NotFound(new { error = "Ticket not found." })
+            ? TypedResults.NotFound()
             : TypedResults.Ok(ticket.ToResponse());
     }
 
-    private static async Task<IResult> Download(Guid ticketId, ICurrentUserAccessor current, ITicketService tickets, CancellationToken cancellationToken)
+    private static async Task<IResult> Download(Guid ticketId, HttpContext httpContext, ITicketService tickets, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var ticket = await tickets.GetByIdAsync(ticketId, userId.Value, cancellationToken);
-        if (ticket is null) return TypedResults.NotFound(new { error = "Ticket not found." });
+        var ticket = await tickets.GetByIdAsync(ticketId, httpContext.CurrentUserId(), cancellationToken);
+        if (ticket is null) return TypedResults.NotFound();
 
         var bytes = BuildTicketPdf(ticket);
-        var filename = $"ticket-{ticket.TicketNumber}.pdf";
-
-        return Results.File(bytes, "application/pdf", filename);
+        return Results.File(bytes, "application/pdf", $"ticket-{ticket.TicketNumber}.pdf");
     }
 
     private static byte[] BuildTicketPdf(Ticket ticket)
@@ -105,9 +99,7 @@ public static class TicketsEndpoints
         pdf.AppendLine("0000000000 65535 f ");
 
         for (var i = 1; i < offsets.Count; i++)
-        {
             pdf.AppendLine($"{offsets[i]:D10} 00000 n ");
-        }
 
         pdf.AppendLine("trailer");
         pdf.AppendLine($"<< /Size {objects.Length + 1} /Root 1 0 R >>");

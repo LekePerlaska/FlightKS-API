@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Models.Pricing;
 using FlightKS.Services.Interfaces;
@@ -72,30 +73,30 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
     public async Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default)
     {
         if (arrivalTime <= departureTime)
-            throw new InvalidOperationException("Arrival time must be after departure time.");
+            throw new ValidationException("arrivalTime", "Arrival time must be after departure time.");
 
         if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
-            throw new InvalidOperationException("Cabin class prices must be greater than zero.");
+            throw new ValidationException("classPrices", "Cabin class prices must be greater than zero.");
 
         var flight = await db.Flights
             .FirstOrDefaultAsync(f => f.Id == flightId && f.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException($"Active flight '{flightId}' not found.");
+            ?? throw new NotFoundException($"Active flight '{flightId}' not found.");
 
         var airlineIsActive = await db.Airlines.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Id == flight.AirlineId && a.IsActive && a.DeletedAt == null, cancellationToken);
         if (!airlineIsActive)
-            throw new InvalidOperationException("Cannot schedule a flight for a disabled airline.");
+            throw new BusinessRuleException("Cannot schedule a flight for a disabled airline.");
 
         var aircraft = await db.Aircrafts.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == aircraftId && a.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException($"Active aircraft '{aircraftId}' not found.");
+            ?? throw new NotFoundException($"Active aircraft '{aircraftId}' not found.");
 
         if (aircraft.AirlineId != flight.AirlineId)
-            throw new InvalidOperationException("Aircraft must belong to the same airline as the flight.");
+            throw new ValidationException("aircraftId", "Aircraft must belong to the same airline as the flight.");
 
         var effectivePrice = currentPrice ?? flight.BasePrice;
         if (effectivePrice <= 0)
-            throw new InvalidOperationException("Current price must be greater than zero.");
+            throw new ValidationException("currentPrice", "Current price must be greater than zero.");
 
         await EnsureAircraftIsFreeAsync(aircraftId, departureTime, arrivalTime, excludeScheduleId: null, cancellationToken);
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
@@ -172,18 +173,18 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
         if (schedule is null) return null;
         if (schedule.DeletedAt is not null)
-            throw new InvalidOperationException("Cannot update a deleted schedule.");
+            throw new BusinessRuleException("Cannot update a deleted schedule.");
 
         var nextDeparture = departureTime ?? schedule.DepartureTime;
         var nextArrival = arrivalTime ?? schedule.ArrivalTime;
         if (nextArrival <= nextDeparture)
-            throw new InvalidOperationException("Arrival time must be after departure time.");
+            throw new ValidationException("arrivalTime", "Arrival time must be after departure time.");
 
         if (currentPrice is <= 0)
-            throw new InvalidOperationException("Current price must be greater than zero.");
+            throw new ValidationException("currentPrice", "Current price must be greater than zero.");
 
         if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
-            throw new InvalidOperationException("Cabin class prices must be greater than zero.");
+            throw new ValidationException("classPrices", "Cabin class prices must be greater than zero.");
 
         if (departureTime is not null || arrivalTime is not null)
             await EnsureAircraftIsFreeAsync(schedule.AircraftId, nextDeparture, nextArrival, excludeScheduleId: scheduleId, cancellationToken);
@@ -227,7 +228,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         return schedule;
     }
 
-
     public async Task<bool> DeleteAsync(Guid scheduleId, CancellationToken cancellationToken = default)
     {
         var schedule = await db.FlightSchedules.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
@@ -237,7 +237,7 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         var isInUse = await db.Tickets.AsNoTracking()
             .AnyAsync(t => t.FlightScheduleId == scheduleId, cancellationToken);
         if (isInUse)
-            throw new InvalidOperationException("Cannot delete a schedule that has issued tickets.");
+            throw new BusinessRuleException("Cannot delete a schedule that has issued tickets.");
 
         var itineraries = await db.Itineraries
             .IgnoreQueryFilters()
@@ -247,7 +247,7 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .ToListAsync(cancellationToken);
 
         if (itineraries.Any(i => i.Segments.Count != 1 || i.Bookings.Count > 0))
-            throw new InvalidOperationException("Cannot delete a schedule that is part of a booked or multi-segment itinerary.");
+            throw new BusinessRuleException("Cannot delete a schedule that is part of a booked or multi-segment itinerary.");
 
         var now = DateTime.UtcNow;
         foreach (var itinerary in itineraries)
@@ -278,7 +278,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .ToListAsync(cancellationToken);
         return rows.Select(t => (t.Passenger, t));
     }
-
 
     private async Task CreateDirectItineraryAsync(FlightSchedule schedule, Flight flight, CancellationToken cancellationToken)
     {
@@ -341,10 +340,9 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
                 departure < s.ArrivalTime,
                 cancellationToken);
         if (clash)
-            throw new InvalidOperationException("This aircraft is already scheduled for an overlapping time window.");
+            throw new ConflictException("This aircraft is already scheduled for an overlapping time window.");
     }
 
     private static int DurationMinutes(DateTime departure, DateTime arrival) =>
         Math.Max(0, (int)Math.Round((arrival - departure).TotalMinutes));
-
 }

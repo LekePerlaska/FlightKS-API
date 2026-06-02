@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Services.Interfaces;
@@ -45,21 +46,14 @@ public static class AdminItinerariesEndpoints
 
     private static async Task<IResult> Create(ItineraryCreateDto dto, IItineraryService itineraries, CancellationToken cancellationToken)
     {
-        try
-        {
-            var itinerary = await itineraries.CreateFromSchedulesAsync(dto.FlightScheduleIds, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/itineraries/{itinerary.Id}", itinerary.ToSearchResult());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var itinerary = await itineraries.CreateFromSchedulesAsync(dto.FlightScheduleIds, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/itineraries/{itinerary.Id}", itinerary.ToSearchResult());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, ItineraryUpdateDto dto, IItineraryService itineraries, CancellationToken cancellationToken)
     {
         if (dto.IsActive is null)
-            return TypedResults.BadRequest(new { error = "isActive is required." });
+            throw new ValidationException("isActive", "isActive is required.");
 
         var updated = await itineraries.SetActiveAsync(id, dto.IsActive.Value, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToSearchResult());
@@ -79,42 +73,21 @@ public static class AdminItinerariesEndpoints
 
     private static async Task<IResult> AddSegment(Guid id, ItinerarySegmentCreateDto dto, IItineraryService itineraries, CancellationToken cancellationToken)
     {
-        try
-        {
-            var segment = await itineraries.AddSegmentAsync(
-                id, dto.FlightScheduleId, dto.SegmentOrder, dto.LayoverMinutesAfterSegment, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/itinerary-segments/{segment.Id}", segment.ToDto());
-        }
-        catch (Exception ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var segment = await itineraries.AddSegmentAsync(
+            id, dto.FlightScheduleId, dto.SegmentOrder, dto.LayoverMinutesAfterSegment, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/itinerary-segments/{segment.Id}", segment.ToDto());
     }
 
     private static async Task<IResult> UpdateSegment(Guid segmentId, ItinerarySegmentUpdateDto dto, IItineraryService itineraries, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await itineraries.UpdateSegmentAsync(
-                segmentId, dto.FlightScheduleId, dto.SegmentOrder, dto.LayoverMinutesAfterSegment, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var updated = await itineraries.UpdateSegmentAsync(
+            segmentId, dto.FlightScheduleId, dto.SegmentOrder, dto.LayoverMinutesAfterSegment, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
     }
 
     private static async Task<IResult> DeleteSegment(Guid segmentId, IItineraryService itineraries, CancellationToken cancellationToken)
     {
-        try
-        {
-            var deleted = await itineraries.DeleteSegmentAsync(segmentId, cancellationToken);
-            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var deleted = await itineraries.DeleteSegmentAsync(segmentId, cancellationToken);
+        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }

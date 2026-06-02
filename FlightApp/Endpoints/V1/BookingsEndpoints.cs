@@ -1,6 +1,7 @@
 using FlightKS.Auth;
 using FlightKS.Enums;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Bookings;
 using FlightKS.Services.Interfaces;
 
@@ -10,7 +11,9 @@ public static class BookingsEndpoints
 {
     public static IEndpointRouteBuilder MapBookingsEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/bookings").WithTags("Bookings").RequireAuthorization(Policies.User);
+        var group = app.MapGroup("/bookings").WithTags("Bookings")
+            .RequireAuthorization(Policies.User)
+            .RequireCurrentUser();
 
         group.MapPost("/", Create).WithName("CreateBooking");
         group.MapGet("/my", My).WithName("GetMyBookings");
@@ -23,75 +26,48 @@ public static class BookingsEndpoints
         return app;
     }
 
-    private static async Task<IResult> Create(BookingCreateDto dto, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> Create(BookingCreateDto dto, HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        try
-        {
-            var booking = await bookings.CreateAsync(userId.Value, dto.ItineraryId, dto.PassengerCount, ParseCabinClass(dto.CabinClass), cancellationToken);
-            return TypedResults.Created($"/api/v1/bookings/{booking.Id}/summary", booking.ToResponse());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var userId = httpContext.CurrentUserId();
+        var booking = await bookings.CreateAsync(userId, dto.ItineraryId, dto.PassengerCount, ParseCabinClass(dto.CabinClass), cancellationToken);
+        return TypedResults.Created($"/api/v1/bookings/{booking.Id}/summary", booking.ToResponse());
     }
 
-    private static async Task<IResult> My(ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> My(HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var list = await bookings.GetForUserAsync(userId.Value, cancellationToken);
+        var list = await bookings.GetForUserAsync(httpContext.CurrentUserId(), cancellationToken);
         return TypedResults.Ok(list.Select(b => b.ToListItem()));
     }
 
-    private static async Task<IResult> Summary(Guid bookingId, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> Summary(Guid bookingId, HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var booking = await bookings.GetSummaryAsync(bookingId, userId, cancellationToken);
+        var booking = await bookings.GetSummaryAsync(bookingId, httpContext.CurrentUserId(), cancellationToken);
         return booking is null ? TypedResults.NotFound() : TypedResults.Ok(booking.ToSummary());
     }
 
-    private static async Task<IResult> PriceSummary(Guid bookingId, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> PriceSummary(Guid bookingId, HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var summary = await bookings.GetPriceSummaryAsync(bookingId, userId.Value, cancellationToken);
+        var summary = await bookings.GetPriceSummaryAsync(bookingId, httpContext.CurrentUserId(), cancellationToken);
         return summary is null
             ? TypedResults.NotFound()
             : TypedResults.Ok(new BookingPriceSummaryDto(summary.SeatsTotal, summary.BaggageTotal, summary.PaidTotal, summary.GrandTotal));
     }
 
-    private static async Task<IResult> Confirmation(Guid bookingId, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> Confirmation(Guid bookingId, HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var booking = await bookings.GetConfirmationAsync(bookingId, userId.Value, cancellationToken);
+        var booking = await bookings.GetConfirmationAsync(bookingId, httpContext.CurrentUserId(), cancellationToken);
         return booking is null ? TypedResults.NotFound() : TypedResults.Ok(booking.ToConfirmation());
     }
 
-    private static async Task<IResult> Tickets(Guid bookingId, ICurrentUserAccessor current, ITicketService tickets, CancellationToken cancellationToken)
+    private static async Task<IResult> Tickets(Guid bookingId, HttpContext httpContext, ITicketService tickets, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var list = await tickets.GetForBookingAsync(bookingId, userId, cancellationToken);
+        var list = await tickets.GetForBookingAsync(bookingId, httpContext.CurrentUserId(), cancellationToken);
         return TypedResults.Ok(list.Select(t => t.ToResponse()));
     }
 
-    private static async Task<IResult> Cancel(Guid bookingId, ICurrentUserAccessor current, IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> Cancel(Guid bookingId, HttpContext httpContext, IBookingService bookings, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var cancelled = await bookings.CancelAsync(bookingId, userId.Value, cancellationToken);
+        var cancelled = await bookings.CancelAsync(bookingId, httpContext.CurrentUserId(), cancellationToken);
         return cancelled ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 

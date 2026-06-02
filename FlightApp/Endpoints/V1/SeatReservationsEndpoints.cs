@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.SeatReservations;
 using FlightKS.Services.Interfaces;
 
@@ -10,7 +11,8 @@ public static class SeatReservationsEndpoints
     {
         var group = app.MapGroup("/bookings/{bookingId:guid}/seat-reservations")
             .WithTags("SeatReservations")
-            .RequireAuthorization(Policies.User);
+            .RequireAuthorization(Policies.User)
+            .RequireCurrentUser();
 
         group.MapPost("/", Reserve).WithName("ReserveSeat");
         group.MapDelete("/{flightSeatId:guid}", Release).WithName("ReleaseSeat");
@@ -18,39 +20,26 @@ public static class SeatReservationsEndpoints
         return app;
     }
 
-    private static async Task<IResult> Reserve(Guid bookingId, SeatReservationCreateDto dto, ICurrentUserAccessor current, ISeatReservationService reservations, CancellationToken cancellationToken)
+    private static async Task<IResult> Reserve(Guid bookingId, SeatReservationCreateDto dto, HttpContext httpContext, ISeatReservationService reservations, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        try
-        {
-            var result = await reservations.ReserveAsync(
-                bookingId, userId.Value, dto.PassengerId, dto.SeatId, dto.ItinerarySegmentId, dto.HoldFor, cancellationToken);
-            return TypedResults.Ok(new SeatReservationResponseDto(
-                result.FlightSeat.Id,
-                result.FlightSeat.SeatId,
-                result.FlightSeat.Seat.SeatNumber,
-                result.FlightSeat.Seat.SeatClass,
-                dto.PassengerId,
-                result.Ticket.Id,
-                result.Ticket.TicketNumber,
-                result.FlightSeat.Price,
-                result.FlightSeat.Status,
-                result.FlightSeat.ReservedUntil));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var result = await reservations.ReserveAsync(
+            bookingId, httpContext.CurrentUserId(), dto.PassengerId, dto.SeatId, dto.ItinerarySegmentId, dto.HoldFor, cancellationToken);
+        return TypedResults.Ok(new SeatReservationResponseDto(
+            result.FlightSeat.Id,
+            result.FlightSeat.SeatId,
+            result.FlightSeat.Seat.SeatNumber,
+            result.FlightSeat.Seat.SeatClass,
+            dto.PassengerId,
+            result.Ticket.Id,
+            result.Ticket.TicketNumber,
+            result.FlightSeat.Price,
+            result.FlightSeat.Status,
+            result.FlightSeat.ReservedUntil));
     }
 
-    private static async Task<IResult> Release(Guid bookingId, Guid flightSeatId, ICurrentUserAccessor current, ISeatReservationService reservations, CancellationToken cancellationToken)
+    private static async Task<IResult> Release(Guid bookingId, Guid flightSeatId, HttpContext httpContext, ISeatReservationService reservations, CancellationToken cancellationToken)
     {
-        var userId = await current.GetUserIdAsync(cancellationToken);
-        if (userId is null) return TypedResults.Unauthorized();
-
-        var ok = await reservations.ReleaseAsync(bookingId, userId.Value, flightSeatId, cancellationToken);
+        var ok = await reservations.ReleaseAsync(bookingId, httpContext.CurrentUserId(), flightSeatId, cancellationToken);
         return ok ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 }

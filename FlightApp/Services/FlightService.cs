@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -78,15 +79,15 @@ public class FlightService(AppDbContext db) : IFlightService
         flightNumber = flightNumber.Trim().ToUpperInvariant();
 
         if (originAirportId == destinationAirportId)
-            throw new InvalidOperationException("Origin and destination airports must differ.");
+            throw new ValidationException("originAirportId", "Origin and destination airports must differ.");
         if (basePrice <= 0)
-            throw new InvalidOperationException("Base price must be greater than zero.");
+            throw new ValidationException("basePrice", "Base price must be greater than zero.");
 
         await ValidateActiveFlightReferencesAsync(airlineId, originAirportId, destinationAirportId, cancellationToken);
 
         var dup = await db.Flights.AsNoTracking()
             .AnyAsync(f => f.AirlineId == airlineId && f.FlightNumber.ToLower() == flightNumber.ToLower(), cancellationToken);
-        if (dup) throw new InvalidOperationException($"Flight number '{flightNumber}' already exists for this airline.");
+        if (dup) throw new ConflictException($"Flight number '{flightNumber}' already exists for this airline.");
 
         var flight = new Flight
         {
@@ -121,14 +122,12 @@ public class FlightService(AppDbContext db) : IFlightService
         var nextDestinationAirportId = destinationAirportId ?? flight.DestinationAirportId;
 
         if (nextOriginAirportId == nextDestinationAirportId)
-            throw new InvalidOperationException("Origin and destination airports must differ.");
+            throw new ValidationException("originAirportId", "Origin and destination airports must differ.");
         if (basePrice is <= 0)
-            throw new InvalidOperationException("Base price must be greater than zero.");
+            throw new ValidationException("basePrice", "Base price must be greater than zero.");
 
         if (airlineId is not null || originAirportId is not null || destinationAirportId is not null)
-        {
             await ValidateActiveFlightReferencesAsync(nextAirlineId, nextOriginAirportId, nextDestinationAirportId, cancellationToken);
-        }
 
         var duplicate = await db.Flights.AsNoTracking()
             .AnyAsync(f =>
@@ -137,7 +136,7 @@ public class FlightService(AppDbContext db) : IFlightService
                 f.FlightNumber.ToLower() == nextFlightNumber.ToLower(),
                 cancellationToken);
         if (duplicate)
-            throw new InvalidOperationException($"Flight number '{nextFlightNumber}' already exists for this airline.");
+            throw new ConflictException($"Flight number '{nextFlightNumber}' already exists for this airline.");
 
         if (airlineId is not null) flight.AirlineId = airlineId.Value;
         if (flightNumber is not null) flight.FlightNumber = nextFlightNumber;
@@ -169,12 +168,12 @@ public class FlightService(AppDbContext db) : IFlightService
     {
         var airlineExists = await db.Airlines.AsNoTracking()
             .AnyAsync(a => a.Id == airlineId && a.IsActive, cancellationToken);
-        if (!airlineExists) throw new InvalidOperationException($"Active airline '{airlineId}' not found.");
+        if (!airlineExists) throw new NotFoundException($"Active airline '{airlineId}' not found.");
 
         var activeAirportCount = await db.Airports.AsNoTracking()
             .CountAsync(a => (a.Id == originAirportId || a.Id == destinationAirportId) && a.IsActive, cancellationToken);
         if (activeAirportCount != 2)
-            throw new InvalidOperationException("Origin and destination airports must both be active.");
+            throw new NotFoundException("Origin and destination airports must both be active.");
     }
 
     private static (DateTime StartUtc, DateTime EndUtc) GetUtcDateWindow(DateOnly date, string timeZone)

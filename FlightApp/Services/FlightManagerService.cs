@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Hubs;
 using FlightKS.Models.Dtos.FlightManager;
 using FlightKS.Models.Entities;
@@ -50,7 +51,7 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
     public async Task<FlightManagerSeatDto?> SetSeatStatusAsync(Guid scheduleId, Guid seatId, FlightSeatStatus status, CancellationToken cancellationToken = default)
     {
         if (status is not (FlightSeatStatus.Available or FlightSeatStatus.Blocked))
-            throw new InvalidOperationException("Seats can only be blocked or released.");
+            throw new ValidationException("status", "Seats can only be blocked or released.");
 
         var schedule = await db.FlightSchedules.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == scheduleId, cancellationToken);
@@ -58,7 +59,7 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
 
         var seat = await db.Seats.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == seatId && s.AircraftId == schedule.AircraftId, cancellationToken)
-            ?? throw new InvalidOperationException("Seat not found on this flight's aircraft.");
+            ?? throw new NotFoundException("Seat not found on this flight's aircraft.");
 
         var flightSeat = await db.FlightSeats
             .FirstOrDefaultAsync(fs => fs.FlightScheduleId == scheduleId && fs.SeatId == seatId, cancellationToken);
@@ -70,7 +71,6 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
 
         if (flightSeat is null)
         {
-            // An untouched seat is already available — releasing it is a no-op.
             if (status == FlightSeatStatus.Available)
                 return new FlightManagerSeatDto(seat.Id, null, seat.SeatNumber, seat.SeatClass, FlightSeatStatus.Available, price);
 
@@ -86,7 +86,7 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
         else
         {
             if (flightSeat.Status is FlightSeatStatus.Booked or FlightSeatStatus.Reserved)
-                throw new InvalidOperationException("Cannot block or release a seat that is reserved or booked.");
+                throw new BusinessRuleException("Cannot block or release a seat that is reserved or booked.");
             flightSeat.Status = status;
             flightSeat.UpdatedAt = DateTime.UtcNow;
         }
@@ -110,12 +110,12 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
         switch (ticket.TicketStatus)
         {
             case TicketStatus.CheckedIn:
-                throw new InvalidOperationException("Passenger is already checked in.");
+                throw new BusinessRuleException("Passenger is already checked in.");
             case TicketStatus.Cancelled:
             case TicketStatus.Refunded:
-                throw new InvalidOperationException("Cannot check in a cancelled or refunded ticket.");
+                throw new BusinessRuleException("Cannot check in a cancelled or refunded ticket.");
             case TicketStatus.Used:
-                throw new InvalidOperationException("This ticket has already been used.");
+                throw new BusinessRuleException("This ticket has already been used.");
         }
 
         ticket.TicketStatus = TicketStatus.CheckedIn;

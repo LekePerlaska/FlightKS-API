@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Users;
 using FlightKS.Models.Entities;
@@ -65,9 +66,7 @@ public static class UsersEndpoints
         CancellationToken cancellationToken)
     {
         if (file.Length == 0)
-        {
-            return TypedResults.BadRequest(new { error = "File is required." });
-        }
+            throw new ValidationException("file", "File is required.");
 
         var user = await users.GetByKeycloakIdAsync(accessor.KeycloakUserId, cancellationToken);
         if (user is null) return TypedResults.NotFound();
@@ -122,34 +121,13 @@ public static class UsersEndpoints
         IUserService users,
         CancellationToken cancellationToken)
     {
-        string keycloakUserId;
-        try
-        {
-            keycloakUserId = await keycloak.CreateUserAsync(
-                dto.Email, dto.FullName, dto.Password, cancellationToken);
-        }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var keycloakUserId = await keycloak.CreateUserAsync(dto.Email, dto.FullName, dto.Password, cancellationToken);
+        var user = await users.CreateAsync(
+            keycloakUserId, dto.FullName, dto.Email,
+            dto.PhoneNumber, dto.DateOfBirth, dto.PassportNumber, dto.Nationality,
+            cancellationToken);
 
-        try
-        {
-            var user = await users.CreateAsync(
-                keycloakUserId, dto.FullName, dto.Email,
-                dto.PhoneNumber, dto.DateOfBirth, dto.PassportNumber, dto.Nationality,
-                cancellationToken);
-
-            return TypedResults.Created($"/api/v1/users/{user.Id}", user.ToResponse());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        return TypedResults.Created($"/api/v1/users/{user.Id}", user.ToResponse());
     }
 
     private static async Task<IResult> GetById(

@@ -1,5 +1,6 @@
 using FlightKS.Data;
 using FlightKS.Enums;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -11,9 +12,8 @@ public class BookingService(AppDbContext db) : IBookingService
     public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, SeatClass? cabinClass = null, CancellationToken cancellationToken = default)
     {
         var itinerary = await db.Itineraries.AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == itineraryId && i.IsActive, cancellationToken);
-        if (itinerary is null)
-            throw new InvalidOperationException($"Itinerary '{itineraryId}' not found or inactive.");
+            .FirstOrDefaultAsync(i => i.Id == itineraryId && i.IsActive, cancellationToken)
+            ?? throw new NotFoundException($"Itinerary '{itineraryId}' not found or is no longer active.");
 
         var perPassenger = itinerary.TotalPrice;
         if (cabinClass is { } cls)

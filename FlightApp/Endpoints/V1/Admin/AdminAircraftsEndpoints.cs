@@ -30,54 +30,26 @@ public static class AdminAircraftsEndpoints
 
     private static async Task<IResult> Create(AircraftCreateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        try
-        {
-            var aircraft = await aircrafts.CreateAsync(dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, cancellationToken);
-            return TypedResults.Created($"/api/v1/admin/aircrafts/{aircraft.Id}", aircraft.ToDto());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var aircraft = await aircrafts.CreateAsync(dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, cancellationToken);
+        return TypedResults.Created($"/api/v1/admin/aircrafts/{aircraft.Id}", aircraft.ToDto());
     }
 
     private static async Task<IResult> Update(Guid id, AircraftUpdateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await aircrafts.UpdateAsync(id, dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await aircrafts.UpdateAsync(id, dto.AirlineId, dto.Model, dto.RegistrationNumber, dto.TotalSeats, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
     }
 
     private static async Task<IResult> ToggleStatus(Guid id, AircraftUpdateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        try
-        {
-            var updated = await aircrafts.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
-            return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var updated = await aircrafts.UpdateAsync(id, null, null, null, null, dto.IsActive, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDto());
     }
 
     private static async Task<IResult> Delete(Guid id, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        try
-        {
-            var deleted = await aircrafts.DeleteAsync(id, cancellationToken);
-            return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var deleted = await aircrafts.DeleteAsync(id, cancellationToken);
+        return deleted ? TypedResults.NoContent() : TypedResults.NotFound();
     }
 
     private static async Task<IResult> GetSeats(Guid id, IAircraftService aircrafts, CancellationToken cancellationToken)
@@ -88,18 +60,7 @@ public static class AdminAircraftsEndpoints
 
     private static async Task<IResult> GenerateSeats(Guid id, SeatBatchCreateDto dto, IAircraftService aircrafts, CancellationToken cancellationToken)
     {
-        try
-        {
-            var seats = await aircrafts.GenerateSeatsAsync(id, dto.Seats, cancellationToken);
-            return TypedResults.Ok(seats.Select(s => s.ToAdminDto()));
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return TypedResults.NotFound(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        var seats = await aircrafts.GenerateSeatsAsync(id, dto.Seats, cancellationToken);
+        return TypedResults.Ok(seats.Select(s => s.ToAdminDto()));
     }
 }

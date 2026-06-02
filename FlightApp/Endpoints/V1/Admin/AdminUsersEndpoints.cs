@@ -62,40 +62,19 @@ public static class AdminUsersEndpoints
         IUserService users,
         CancellationToken cancellationToken)
     {
-        string keycloakUserId;
-        try
-        {
-            keycloakUserId = await keycloak.CreateUserAsync(
-                dto.Email, dto.FullName, dto.Password, cancellationToken);
-        }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.BadRequest(new { error = ex.Message });
-        }
+        var keycloakUserId = await keycloak.CreateUserAsync(dto.Email, dto.FullName, dto.Password, cancellationToken);
+        var user = await users.CreateAsync(
+            keycloakUserId, dto.FullName, dto.Email,
+            dto.PhoneNumber, dto.DateOfBirth, dto.PassportNumber, dto.Nationality,
+            cancellationToken);
 
-        try
-        {
-            var user = await users.CreateAsync(
-                keycloakUserId, dto.FullName, dto.Email,
-                dto.PhoneNumber, dto.DateOfBirth, dto.PassportNumber, dto.Nationality,
-                cancellationToken);
+        var roles = await keycloak.GetUserRolesAsync(keycloakUserId, cancellationToken);
 
-            var roles = await keycloak.GetUserRolesAsync(keycloakUserId, cancellationToken);
-
-            return TypedResults.Created(
-                $"/api/v1/admin/users/{user.Id}",
-                new AdminUserListItemDto(
-                    user.Id, user.FullName, user.Email, user.PhoneNumber,
-                    user.IsActive, user.CreatedAt, roles));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return TypedResults.Conflict(new { error = ex.Message });
-        }
+        return TypedResults.Created(
+            $"/api/v1/admin/users/{user.Id}",
+            new AdminUserListItemDto(
+                user.Id, user.FullName, user.Email, user.PhoneNumber,
+                user.IsActive, user.CreatedAt, roles));
     }
 
     private static async Task<IResult> GetById(
@@ -161,7 +140,6 @@ public static class AdminUsersEndpoints
         if (updated is null) return TypedResults.NotFound();
 
         await keycloak.SetUserEnabledAsync(user.KeycloakUserId, newStatus, cancellationToken);
-
         return TypedResults.Ok(new { isActive = newStatus });
     }
 

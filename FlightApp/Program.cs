@@ -1,12 +1,16 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FlightKS.Auth;
+using FlightKS.Exceptions;
 using FlightKS.Data;
+using FlightKS.Endpoints;
 using FlightKS.Endpoints.V1;
 using FlightKS.Endpoints.V1.Admin;
 using FlightKS.Endpoints.V1.FlightManager;
 using FlightKS.Enums;
 using FlightKS.Hubs;
+using FlightKS.Middleware;
 using FlightKS.Models.Config;
 using FlightKS.Services;
 using FlightKS.Services.Interfaces;
@@ -31,6 +35,8 @@ builder.Host.UseSerilog((ctx, cfg) =>
 );
 
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Keycloak
 builder.Services.Configure<KeycloakOptions>(
@@ -69,6 +75,37 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     context.Token = accessToken;
                 }
                 return Task.CompletedTask;
+            },
+
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                var error = new ErrorResponse(
+                    Type: "https://httpstatuses.io/401",
+                    Title: "Unauthorized",
+                    Status: 401,
+                    Code: "unauthorized",
+                    Detail: "Authentication is required. Provide a valid Bearer token.",
+                    Instance: context.HttpContext.Request.Path,
+                    TraceId: Activity.Current?.Id ?? context.HttpContext.TraceIdentifier);
+                context.HttpContext.Response.StatusCode = 401;
+                context.HttpContext.Response.ContentType = "application/problem+json";
+                await context.HttpContext.Response.WriteAsJsonAsync(error, context.HttpContext.RequestAborted);
+            },
+
+            OnForbidden = async context =>
+            {
+                var error = new ErrorResponse(
+                    Type: "https://httpstatuses.io/403",
+                    Title: "Forbidden",
+                    Status: 403,
+                    Code: "forbidden",
+                    Detail: "You do not have permission to access this resource.",
+                    Instance: context.HttpContext.Request.Path,
+                    TraceId: Activity.Current?.Id ?? context.HttpContext.TraceIdentifier);
+                context.HttpContext.Response.StatusCode = 403;
+                context.HttpContext.Response.ContentType = "application/problem+json";
+                await context.HttpContext.Response.WriteAsJsonAsync(error, context.HttpContext.RequestAborted);
             },
         };
     });
@@ -163,6 +200,32 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
+app.UseExceptionHandler();
+
+app.UseStatusCodePages(async ctx =>
+{
+    var httpContext = ctx.HttpContext;
+    var status = httpContext.Response.StatusCode;
+    var (title, code, detail) = status switch
+    {
+        401 => ("Unauthorized", "unauthorized", "Authentication is required."),
+        403 => ("Forbidden", "forbidden", "You do not have permission to access this resource."),
+        404 => ("Not Found", "not_found", "The requested resource was not found."),
+        405 => ("Method Not Allowed", "method_not_allowed", "The HTTP method is not allowed for this endpoint."),
+        _ => ("Error", "error", "An error occurred."),
+    };
+    var error = new ErrorResponse(
+        Type: $"https://httpstatuses.io/{status}",
+        Title: title,
+        Status: status,
+        Code: code,
+        Detail: detail,
+        Instance: httpContext.Request.Path,
+        TraceId: Activity.Current?.Id ?? httpContext.TraceIdentifier);
+    httpContext.Response.ContentType = "application/problem+json";
+    await httpContext.Response.WriteAsJsonAsync(error, httpContext.RequestAborted);
+});
+
 app.UseHttpsRedirection();
 
 // Ensure the uploads directory exists and is served as static files
@@ -178,7 +241,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-var v1 = app.MapGroup("/api/v1");
+var v1 = app.MapGroup("/api/v1").WithStandardErrors();
 v1.MapAuthEndpoints();
 v1.MapUsersEndpoints();
 v1.MapAirportsEndpoints();

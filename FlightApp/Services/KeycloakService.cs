@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using FlightKS.Exceptions;
 using FlightKS.Models.Config;
 using FlightKS.Models.Dtos.Admin;
 using FlightKS.Services.Interfaces;
@@ -47,7 +48,7 @@ public class KeycloakService(
         var response = await http.SendAsync(request, cancellationToken);
 
         if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
-            throw new InvalidOperationException("A user with this email already exists in Keycloak.");
+            throw new ConflictException("A user with this email already exists in Keycloak.");
 
         if (!response.IsSuccessStatusCode)
         {

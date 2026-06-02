@@ -1,4 +1,5 @@
 using FlightKS.Data;
+using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ public class UserService(AppDbContext db) : IUserService
             .AnyAsync(u => u.Email == email || u.KeycloakUserId == keycloakUserId, cancellationToken);
 
         if (exists)
-            throw new InvalidOperationException("A user with this email already exists.");
+            throw new ConflictException("A user with this email already exists.");
 
         var user = new User
         {
