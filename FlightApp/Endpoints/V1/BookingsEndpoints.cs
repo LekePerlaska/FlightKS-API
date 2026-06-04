@@ -15,7 +15,8 @@ public static class BookingsEndpoints
             .RequireAuthorization(Policies.User)
             .RequireCurrentUser();
 
-        group.MapPost("/", Create).WithName("CreateBooking");
+        group.MapPost("/", Create).WithName("CreateBooking")
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
         group.MapGet("/my", My).WithName("GetMyBookings");
         group.MapGet("/{bookingId:guid}/summary", Summary).WithName("GetBookingSummary");
         group.MapGet("/{bookingId:guid}/price-summary", PriceSummary).WithName("GetBookingPriceSummary");

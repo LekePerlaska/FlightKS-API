@@ -1,5 +1,6 @@
 using FlightKS.Enums;
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Models.Dtos.FlightSchedules;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Services.Interfaces;
@@ -12,7 +13,8 @@ public static class ItinerariesEndpoints
     {
         var group = app.MapGroup("/itineraries").WithTags("Itineraries");
 
-        group.MapGet("/search", Search).WithName("SearchItineraries");
+        group.MapGet("/search", Search).WithName("SearchItineraries")
+            .RequireRateLimiting(RateLimitPartitioning.PublicSearchPolicy);
         group.MapGet("/{id:guid}", GetById).WithName("GetItinerary");
         group.MapGet("/{id:guid}/segments", GetSegments).WithName("GetItinerarySegments");
         group.MapGet("/{id:guid}/seat-summary", GetSeatSummary).WithName("GetItinerarySeatSummary");

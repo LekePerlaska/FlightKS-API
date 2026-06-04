@@ -16,6 +16,10 @@ using FlightKS.Services;
 using FlightKS.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using StackExchange.Redis;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Scalar.AspNetCore;
@@ -41,6 +45,65 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 // Keycloak
 builder.Services.Configure<KeycloakOptions>(
     builder.Configuration.GetSection(KeycloakOptions.SectionName));
+
+// Rate limiting
+builder.Services.Configure<RateLimitingOptions>(
+    builder.Configuration.GetSection(RateLimitingOptions.SectionName));
+
+var rateLimitOptions = builder.Configuration
+    .GetSection(RateLimitingOptions.SectionName)
+    .Get<RateLimitingOptions>() ?? new RateLimitingOptions();
+
+if (rateLimitOptions.Store == RateLimitStore.Distributed)
+{
+    Log.Information("RateLimiting: Distributed mode — connecting to Redis at {ConnectionString}",
+        rateLimitOptions.RedisConnectionString);
+    builder.Services.AddSingleton<IConnectionMultiplexer>(
+        _ => ConnectionMultiplexer.Connect(rateLimitOptions.RedisConnectionString));
+}
+else
+{
+    Log.Information("RateLimiting: InMemory mode (per-instance). " +
+                    "Set Store=Distributed and start Redis to enforce global limits across replicas.");
+}
+
+// Resolves IConnectionMultiplexer per request-context when Distributed; null otherwise.
+// IConnectionMultiplexer is a singleton so resolution is a cheap DI cache lookup.
+IConnectionMultiplexer? GetMux(HttpContext ctx) =>
+    rateLimitOptions.Store == RateLimitStore.Distributed
+        ? ctx.RequestServices.GetService<IConnectionMultiplexer>()
+        : null;
+
+builder.Services.AddRateLimiter(limiterOptions =>
+{
+    limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    limiterOptions.OnRejected = RateLimitRejectionHandler.OnRejected;
+
+    // Global fallback — applies to every route that does not have a named policy.
+    // Partitioned by user (sub) when authenticated, IP when anonymous.
+    limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
+        RateLimitPartitioning.GetGlobalPartition(
+            RateLimitPartitioning.GetPartitionKey(ctx),
+            rateLimitOptions.Global,
+            rateLimitOptions.Store,
+            GetMux(ctx)));
+
+    // Anonymous search/autocomplete — token bucket (in-memory) or sliding window (distributed).
+    limiterOptions.AddPolicy<string>(RateLimitPartitioning.PublicSearchPolicy, ctx =>
+        RateLimitPartitioning.GetPublicSearchPartition(
+            RateLimitPartitioning.GetPartitionKey(ctx),
+            rateLimitOptions.PublicSearch,
+            rateLimitOptions.Store,
+            GetMux(ctx)));
+
+    // Money/inventory mutations — sliding window per user (sub).
+    limiterOptions.AddPolicy<string>(RateLimitPartitioning.SensitiveWritesPolicy, ctx =>
+        RateLimitPartitioning.GetSensitiveWritesPartition(
+            RateLimitPartitioning.GetPartitionKey(ctx),
+            rateLimitOptions.SensitiveWrites,
+            rateLimitOptions.Store,
+            GetMux(ctx)));
+});
 
 var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? string.Empty;
 var runningInDocker = keycloakAuthority.Contains("keycloak:", StringComparison.OrdinalIgnoreCase);
@@ -194,6 +257,36 @@ builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
 
 var app = builder.Build();
 
+// ForwardedHeaders — must be first so the real client IP is visible to both
+// UseSerilogRequestLogging and the rate limiter (Phase 5).
+// Dev: trust all sources because Docker's bridge network uses non-loopback IPs
+//      and there is no reverse proxy in the compose stack.
+// Prod: populate ForwardedHeaders:KnownProxies in config with the actual proxy
+//       CIDR/IPs before deploying behind a reverse proxy, to prevent IP spoofing.
+var fwdOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+if (app.Environment.IsDevelopment())
+{
+    fwdOptions.KnownIPNetworks.Clear();
+    fwdOptions.KnownProxies.Clear();
+}
+else
+{
+    var knownProxies = builder.Configuration
+        .GetSection("ForwardedHeaders:KnownProxies")
+        .Get<string[]>() ?? [];
+    foreach (var proxy in knownProxies)
+    {
+        if (System.Net.IPAddress.TryParse(proxy, out var ip))
+            fwdOptions.KnownProxies.Add(ip);
+    }
+}
+app.UseForwardedHeaders(fwdOptions);
+
+app.UseSerilogRequestLogging();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -212,6 +305,7 @@ app.UseStatusCodePages(async ctx =>
         403 => ("Forbidden", "forbidden", "You do not have permission to access this resource."),
         404 => ("Not Found", "not_found", "The requested resource was not found."),
         405 => ("Method Not Allowed", "method_not_allowed", "The HTTP method is not allowed for this endpoint."),
+        429 => ("Too Many Requests", "rate_limit_exceeded", "You have exceeded the request rate limit. Please slow down and try again."),
         _ => ("Error", "error", "An error occurred."),
     };
     var error = new ErrorResponse(
@@ -240,6 +334,7 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 var v1 = app.MapGroup("/api/v1").WithStandardErrors();
 v1.MapAuthEndpoints();
@@ -272,8 +367,8 @@ v1.MapFlightManagerDashboardEndpoints();
 v1.MapFlightManagerSchedulesEndpoints();
 v1.MapFlightManagerTicketsEndpoints();
 
-app.MapHub<SeatHub>("/hubs/seats");
-app.MapHub<NotificationHub>("/hubs/notifications");
-app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard");
+app.MapHub<SeatHub>("/hubs/seats").DisableRateLimiting();
+app.MapHub<NotificationHub>("/hubs/notifications").DisableRateLimiting();
+app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard").DisableRateLimiting();
 
 app.Run();

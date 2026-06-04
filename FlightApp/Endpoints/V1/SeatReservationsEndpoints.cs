@@ -14,7 +14,8 @@ public static class SeatReservationsEndpoints
             .RequireAuthorization(Policies.User)
             .RequireCurrentUser();
 
-        group.MapPost("/", Reserve).WithName("ReserveSeat");
+        group.MapPost("/", Reserve).WithName("ReserveSeat")
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
         group.MapDelete("/{flightSeatId:guid}", Release).WithName("ReleaseSeat");
 
         return app;

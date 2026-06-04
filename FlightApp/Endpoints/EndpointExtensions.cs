@@ -14,7 +14,7 @@ public static class EndpointExtensions
     public static TBuilder WithStandardErrors<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder
     {
-        foreach (var status in new[] { 400, 401, 403, 404, 409, 422, 500 })
+        foreach (var status in new[] { 400, 401, 403, 404, 409, 422, 429, 500 })
         {
             builder.WithMetadata(new ProducesResponseTypeMetadata(status, typeof(ErrorResponse), [ProblemJson]));
         }
