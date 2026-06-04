@@ -1,4 +1,5 @@
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Services.Interfaces;
 
 namespace FlightKS.Endpoints.V1;
@@ -9,7 +10,8 @@ public static class FlightsEndpoints
     {
         var group = app.MapGroup("/flights").WithTags("Flights");
 
-        group.MapGet("/search", Search).WithName("SearchFlights");
+        group.MapGet("/search", Search).WithName("SearchFlights")
+            .RequireRateLimiting(RateLimitPartitioning.PublicSearchPolicy);
         group.MapGet("/popular-destinations", GetPopularDestinations).WithName("GetPopularDestinations");
         group.MapGet("/featured", GetFeatured).WithName("GetFeaturedFlights");
 

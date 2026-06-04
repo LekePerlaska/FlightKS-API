@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Middleware;
 using FlightKS.Services.Interfaces;
 
 namespace FlightKS.Endpoints.V1;
@@ -9,7 +10,8 @@ public static class PaymentRefundsEndpoints
     {
         var group = app.MapGroup("/payments").WithTags("PaymentRefunds").RequireAuthorization(Policies.Admin);
 
-        group.MapPost("/{paymentId:guid}/refunds", CreateRefund).WithName("CreatePaymentRefund");
+        group.MapPost("/{paymentId:guid}/refunds", CreateRefund).WithName("CreatePaymentRefund")
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
 
         return app;
     }

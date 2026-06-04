@@ -1,4 +1,5 @@
 using FlightKS.Mappers;
+using FlightKS.Middleware;
 using FlightKS.Services.Interfaces;
 
 namespace FlightKS.Endpoints.V1;
@@ -10,7 +11,8 @@ public static class AirportsEndpoints
         var group = app.MapGroup("/airports").WithTags("Airports");
 
         group.MapGet("/", GetAll).WithName("GetAirports");
-        group.MapGet("/autocomplete", Autocomplete).WithName("AirportsAutocomplete");
+        group.MapGet("/autocomplete", Autocomplete).WithName("AirportsAutocomplete")
+            .RequireRateLimiting(RateLimitPartitioning.PublicSearchPolicy);
 
         return app;
     }

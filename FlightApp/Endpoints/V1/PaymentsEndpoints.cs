@@ -14,7 +14,8 @@ public static class PaymentsEndpoints
             .RequireAuthorization(Policies.User)
             .RequireCurrentUser();
 
-        group.MapPost("/", Create).WithName("CreatePayment");
+        group.MapPost("/", Create).WithName("CreatePayment")
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
 
         return app;
     }

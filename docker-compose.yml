@@ -41,6 +41,10 @@ services:
       - Keycloak__AdminClientSecret=${KEYCLOAK_ADMIN_CLIENT_SECRET}
       - Keycloak__FrontendClientId=${KEYCLOAK_FRONTEND_CLIENT_ID}
 
+      # Used only when RateLimiting:Store = Distributed. Safe to leave set in InMemory mode.
+      # To enable: set RateLimiting__Store=Distributed here (or via env at deploy time).
+      - RateLimiting__RedisConnectionString=redis:6379
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -115,6 +119,20 @@ services:
     networks:
       - flightks-net
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - flightks-net
+
   loki:
     image: grafana/loki:3.0.0
     ports:
@@ -152,3 +170,4 @@ volumes:
   keycloak_db_data:
   loki_data:
   grafana_data:
+  redis_data:
