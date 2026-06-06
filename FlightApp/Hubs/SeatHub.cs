@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace FlightKS.Hubs;
 
+[Authorize]
 public class SeatHub : Hub
 {
     public async Task JoinScheduleGroup(string scheduleId)

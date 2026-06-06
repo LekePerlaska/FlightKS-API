@@ -111,10 +111,32 @@ public class BookingService(AppDbContext db) : IBookingService
         return true;
     }
 
-    public async Task<IEnumerable<Booking>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
-        await LoadAdmin(asNoTracking: true)
+    public async Task<(IReadOnlyList<Booking> Items, int Total)> GetAllForAdminAsync(
+        string? search, BookingStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var q = LoadAdmin(asNoTracking: true);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            q = q.Where(b =>
+                b.BookingReference.ToLower().Contains(term) ||
+                b.User.FullName.ToLower().Contains(term) ||
+                b.User.Email.ToLower().Contains(term));
+        }
+
+        if (status is not null)
+            q = q.Where(b => b.Status == status);
+
+        var total = await q.CountAsync(cancellationToken);
+        var items = await q
             .OrderByDescending(b => b.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 
     public Task<Booking?> GetDetailForAdminAsync(Guid bookingId, CancellationToken cancellationToken = default) =>
         LoadDetailed(asNoTracking: true)

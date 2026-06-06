@@ -7,11 +7,20 @@ namespace FlightKS.Services;
 
 public class NotificationService(AppDbContext db) : INotificationService
 {
-    public async Task<IEnumerable<Notification>> GetForUserAsync(Guid userId, bool? unreadOnly = null, CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<Notification> Items, int Total)> GetForUserAsync(
+        Guid userId, bool? unreadOnly, int page, int pageSize, CancellationToken cancellationToken = default)
     {
         var q = db.Notifications.AsNoTracking().Where(n => n.UserId == userId);
         if (unreadOnly == true) q = q.Where(n => !n.IsRead);
-        return await q.OrderByDescending(n => n.CreatedAt).ToListAsync(cancellationToken);
+
+        var total = await q.CountAsync(cancellationToken);
+        var items = await q
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
     }
 
     public Task<Notification?> GetByIdAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default) =>

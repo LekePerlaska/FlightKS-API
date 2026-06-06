@@ -24,10 +24,16 @@ public static class NotificationsEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken, bool? unreadOnly = null)
+    private static async Task<IResult> GetAll(
+        HttpContext httpContext,
+        INotificationService notifications,
+        CancellationToken cancellationToken,
+        bool? unreadOnly = null,
+        int page = 1,
+        int pageSize = 50)
     {
-        var list = await notifications.GetForUserAsync(httpContext.CurrentUserId(), unreadOnly, cancellationToken);
-        return TypedResults.Ok(list.Select(n => n.ToDto()));
+        var (items, total) = await notifications.GetForUserAsync(httpContext.CurrentUserId(), unreadOnly, page, pageSize, cancellationToken);
+        return TypedResults.Ok(new { items = items.Select(n => n.ToDto()), total, page, pageSize });
     }
 
     private static async Task<IResult> GetById(Guid notificationId, HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)

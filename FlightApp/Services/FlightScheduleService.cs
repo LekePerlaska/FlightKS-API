@@ -59,16 +59,39 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<FlightSchedule>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
-        await db.FlightSchedules.IgnoreQueryFilters().AsNoTracking()
+    public async Task<(IReadOnlyList<FlightSchedule> Items, int Total)> GetAllForAdminAsync(
+        string? search, FlightScheduleStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var q = db.FlightSchedules.IgnoreQueryFilters().AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.Airline)
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
             .Include(s => s.Aircraft)
             .Include(s => s.Prices)
             .Where(s => s.DeletedAt == null)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            q = q.Where(s =>
+                s.Flight.FlightNumber.ToLower().Contains(term) ||
+                s.Flight.Airline.Name.ToLower().Contains(term) ||
+                s.Flight.Airline.Code.ToLower().Contains(term));
+        }
+
+        if (status is not null)
+            q = q.Where(s => s.Status == status);
+
+        var total = await q.CountAsync(cancellationToken);
+        var items = await q
             .OrderByDescending(s => s.DepartureTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 
     public async Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default)
     {

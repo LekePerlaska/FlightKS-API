@@ -258,6 +258,8 @@ builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
 
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // ForwardedHeaders — must be first so the real client IP is visible to both
@@ -287,6 +289,11 @@ else
     }
 }
 app.UseForwardedHeaders(fwdOptions);
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 
 app.UseSerilogRequestLogging();
 
@@ -373,5 +380,7 @@ v1.MapFlightManagerTicketsEndpoints();
 app.MapHub<SeatHub>("/hubs/seats").DisableRateLimiting();
 app.MapHub<NotificationHub>("/hubs/notifications").DisableRateLimiting();
 app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard").DisableRateLimiting();
+
+app.MapHealthChecks("/health");
 
 app.Run();

@@ -59,13 +59,36 @@ public class FlightService(AppDbContext db) : IFlightService
             .Take(limit)
             .ToListAsync(cancellationToken);
 
-    public async Task<IEnumerable<Flight>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
-        await db.Flights.IgnoreQueryFilters().AsNoTracking()
+    public async Task<(IReadOnlyList<Flight> Items, int Total)> GetAllForAdminAsync(
+        string? search, bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var q = db.Flights.IgnoreQueryFilters().AsNoTracking()
             .Include(f => f.Airline)
             .Include(f => f.OriginAirport)
             .Include(f => f.DestinationAirport)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            q = q.Where(f =>
+                f.FlightNumber.ToLower().Contains(term) ||
+                f.Airline.Name.ToLower().Contains(term) ||
+                f.Airline.Code.ToLower().Contains(term));
+        }
+
+        if (isActive is not null)
+            q = q.Where(f => f.IsActive == isActive);
+
+        var total = await q.CountAsync(cancellationToken);
+        var items = await q
             .OrderBy(f => f.Airline.Name).ThenBy(f => f.FlightNumber)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 
     public Task<Flight?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         db.Flights.AsNoTracking()

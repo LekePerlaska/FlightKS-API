@@ -23,7 +23,7 @@ public static class UsersEndpoints
             .WithName("UploadCurrentUserDocument")
             .DisableAntiforgery()
             .RequireAuthorization();
-        group.MapGet("/{id:guid}", GetById).WithName("GetUserById");
+        group.MapGet("/{id:guid}", GetById).WithName("GetUserById").RequireAuthorization();
         group.MapPatch("/{id:guid}", Update).WithName("UpdateUser").RequireAuthorization().WithValidation<UserUpdateDto>();
 
         return app;
@@ -68,6 +68,8 @@ public static class UsersEndpoints
     {
         if (file.Length == 0)
             throw new ValidationException("file", "File is required.");
+        if (file.Length > 10 * 1024 * 1024)
+            throw new ValidationException("file", "File size must not exceed 10 MB.");
 
         var user = await users.GetByKeycloakIdAsync(accessor.KeycloakUserId, cancellationToken);
         if (user is null) return TypedResults.NotFound();
@@ -143,9 +145,15 @@ public static class UsersEndpoints
     private static async Task<IResult> Update(
         Guid id,
         UserUpdateDto dto,
+        ICurrentUserAccessor accessor,
         IUserService users,
         CancellationToken cancellationToken)
     {
+        // Only the profile owner may update their own data; admins use /admin/users/{id}.
+        var callerId = await accessor.GetUserIdAsync(cancellationToken);
+        if (callerId != id)
+            throw new ForbiddenException("You can only update your own profile.");
+
         var updated = await users.UpdateAsync(
             id, dto.FullName, dto.PhoneNumber, dto.DateOfBirth,
             dto.PassportNumber, dto.Nationality, cancellationToken);
