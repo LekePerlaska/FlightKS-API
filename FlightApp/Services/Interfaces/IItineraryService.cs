@@ -23,7 +23,8 @@ public interface IItineraryService
         int limit = 4,
         CancellationToken cancellationToken = default);
 
-    Task<IEnumerable<Itinerary>> GetAllForAdminAsync(CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Itinerary> Items, int Total)> GetAllForAdminAsync(
+        bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<Itinerary> CreateFromSchedulesAsync(List<Guid> flightScheduleIds, CancellationToken cancellationToken = default);
     Task<Itinerary?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
     Task<bool> DeleteForAdminAsync(Guid id, CancellationToken cancellationToken = default);

@@ -23,10 +23,16 @@ public static class AdminBookingsEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(IBookingService bookings, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAll(
+        IBookingService bookings,
+        CancellationToken cancellationToken,
+        string? search = null,
+        BookingStatus? status = null,
+        int page = 1,
+        int pageSize = 20)
     {
-        var list = await bookings.GetAllForAdminAsync(cancellationToken);
-        return TypedResults.Ok(list.Select(b => b.ToAdminListItem()));
+        var (items, total) = await bookings.GetAllForAdminAsync(search, status, page, pageSize, cancellationToken);
+        return TypedResults.Ok(new { items = items.Select(b => b.ToAdminListItem()), total, page, pageSize });
     }
 
     private static async Task<IResult> GetById(Guid id, IBookingService bookings, CancellationToken cancellationToken)

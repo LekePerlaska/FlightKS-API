@@ -88,11 +88,23 @@ public class ItineraryService(AppDbContext db) : IItineraryService
             .OrderBy(s => s.SegmentOrder)
             .ToListAsync(cancellationToken);
 
-    public async Task<IEnumerable<Itinerary>> GetAllForAdminAsync(CancellationToken cancellationToken = default) =>
-        await LoadFull(asNoTracking: true)
-            .IgnoreQueryFilters()
+    public async Task<(IReadOnlyList<Itinerary> Items, int Total)> GetAllForAdminAsync(
+        bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var q = LoadFull(asNoTracking: true).IgnoreQueryFilters().AsQueryable();
+
+        if (isActive is not null)
+            q = q.Where(i => i.IsActive == isActive);
+
+        var total = await q.CountAsync(cancellationToken);
+        var items = await q
             .OrderByDescending(i => i.DepartureTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
 
     public async Task<Itinerary> CreateFromSchedulesAsync(List<Guid> flightScheduleIds, CancellationToken cancellationToken = default)
     {

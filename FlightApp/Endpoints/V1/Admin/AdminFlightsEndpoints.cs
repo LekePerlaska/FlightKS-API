@@ -3,6 +3,7 @@ using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Flights;
 using FlightKS.Services.Interfaces;
+using FlightKS.Models.Dtos;
 
 namespace FlightKS.Endpoints.V1.Admin;
 
@@ -21,10 +22,16 @@ public static class AdminFlightsEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(IFlightService flights, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAll(
+        IFlightService flights,
+        CancellationToken cancellationToken,
+        string? search = null,
+        bool? isActive = null,
+        int page = 1,
+        int pageSize = 20)
     {
-        var list = await flights.GetAllForAdminAsync(cancellationToken);
-        return TypedResults.Ok(list.Select(f => f.ToAdminListItem()));
+        var (items, total) = await flights.GetAllForAdminAsync(search, isActive, page, pageSize, cancellationToken);
+        return TypedResults.Ok(new { items = items.Select(f => f.ToAdminListItem()), total, page, pageSize });
     }
 
     private static async Task<IResult> GetById(Guid id, IFlightService flights, CancellationToken cancellationToken)

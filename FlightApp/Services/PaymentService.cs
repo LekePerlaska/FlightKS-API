@@ -19,10 +19,24 @@ public class PaymentService(AppDbContext db) : IPaymentService
     {
         var booking = await db.Bookings
             .Include(b => b.Tickets).ThenInclude(t => t.FlightSeat)
+            .Include(b => b.BookingBaggage).ThenInclude(bb => bb.BaggageOption)
+            .Include(b => b.Payments)
             .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken)
             ?? throw new NotFoundException($"Booking '{bookingId}' not found.");
         if (booking.UserId != ownerUserId)
             throw new ForbiddenException("You do not have access to this booking.");
+
+        // Compute the authoritative amount server-side — never trust the client-supplied figure alone.
+        var seatsTotal = booking.Tickets.Sum(t => t.Price);
+        var baggageTotal = booking.BookingBaggage.Sum(bb => bb.BaggageOption is not null ? bb.BaggageOption.Price * bb.Quantity : 0m);
+        var grandTotal = seatsTotal + baggageTotal > 0 ? seatsTotal + baggageTotal : booking.TotalAmount;
+        var alreadyPaid = booking.Payments
+            .Where(p => p.PaymentStatus == PaymentStatus.Completed)
+            .Sum(p => p.Amount);
+        var outstanding = grandTotal - alreadyPaid;
+
+        if (amount < outstanding)
+            throw new BusinessRuleException($"Payment amount {amount:F2} is less than the outstanding balance {outstanding:F2}.");
 
         var payment = new Payment
         {
@@ -46,7 +60,7 @@ public class PaymentService(AppDbContext db) : IPaymentService
         }
 
         booking.Status = BookingStatus.Confirmed;
-        booking.TotalAmount += amount;
+        booking.TotalAmount = grandTotal;
         booking.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);

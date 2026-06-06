@@ -1,6 +1,7 @@
 using FlightKS.Auth;
 using FlightKS.Endpoints;
 using FlightKS.Mappers;
+using FlightKS.Models.Dtos;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Services.Interfaces;
 
@@ -32,10 +33,15 @@ public static class AdminItinerariesEndpoints
         return app;
     }
 
-    private static async Task<IResult> GetAll(IItineraryService itineraries, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAll(
+        IItineraryService itineraries,
+        CancellationToken cancellationToken,
+        bool? isActive = null,
+        int page = 1,
+        int pageSize = 20)
     {
-        var list = await itineraries.GetAllForAdminAsync(cancellationToken);
-        return TypedResults.Ok(list.Select(i => i.ToSearchResult()));
+        var (items, total) = await itineraries.GetAllForAdminAsync(isActive, page, pageSize, cancellationToken);
+        return TypedResults.Ok(new { items = items.Select(i => i.ToSearchResult()), total, page, pageSize });
     }
 
     private static async Task<IResult> GetById(Guid id, IItineraryService itineraries, CancellationToken cancellationToken)

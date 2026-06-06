@@ -92,10 +92,10 @@ public static class AdminAirlinesEndpoints
         var airline = await airlines.GetByIdForAdminAsync(id, cancellationToken);
         if (airline is null) return TypedResults.NotFound();
 
-        if (!file.ContentType.StartsWith("image/"))
-            throw new ValidationException("file", "Only image files are allowed.");
         if (file.Length > 5 * 1024 * 1024)
             throw new ValidationException("file", "File size must not exceed 5 MB.");
+        if (!await IsAllowedImageAsync(file))
+            throw new ValidationException("file", "Only JPEG, PNG, GIF, or WebP images are allowed.");
 
         if (airline.LogoFileId.HasValue)
         {
@@ -167,6 +167,27 @@ public static class AdminAirlinesEndpoints
 
         var updated = await airlines.GetByIdForAdminAsync(id, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
+    }
+
+    private static async Task<bool> IsAllowedImageAsync(IFormFile file)
+    {
+        var buffer = new byte[12];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length));
+        if (read < 4) return false;
+
+        // JPEG: FF D8 FF
+        if (buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF) return true;
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (buffer[0] == 0x89 && buffer[1] == 0x50 && buffer[2] == 0x4E && buffer[3] == 0x47) return true;
+        // GIF: 47 49 46 38
+        if (buffer[0] == 0x47 && buffer[1] == 0x49 && buffer[2] == 0x46 && buffer[3] == 0x38) return true;
+        // WebP: RIFF????WEBP (bytes 0-3 = RIFF, bytes 8-11 = WEBP)
+        if (read >= 12 &&
+            buffer[0] == 0x52 && buffer[1] == 0x49 && buffer[2] == 0x46 && buffer[3] == 0x46 &&
+            buffer[8] == 0x57 && buffer[9] == 0x45 && buffer[10] == 0x42 && buffer[11] == 0x50) return true;
+
+        return false;
     }
 
     private static string? ExtractLocalUploadPath(string storagePath, string contentRootPath)

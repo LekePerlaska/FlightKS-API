@@ -112,9 +112,11 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
         var seat = await db.FlightSeats.FirstOrDefaultAsync(fs => fs.Id == flightSeatId, cancellationToken);
         if (seat is null || seat.Status != FlightSeatStatus.Reserved) return false;
 
+        // Verify the seat was reserved under this specific booking before releasing it.
         var ticket = await db.Tickets
             .FirstOrDefaultAsync(t => t.BookingId == bookingId && t.FlightSeatId == flightSeatId, cancellationToken);
-        if (ticket is not null) db.Tickets.Remove(ticket);
+        if (ticket is null) return false;
+        db.Tickets.Remove(ticket);
 
         seat.Status = FlightSeatStatus.Available;
         seat.ReservedUntil = null;
