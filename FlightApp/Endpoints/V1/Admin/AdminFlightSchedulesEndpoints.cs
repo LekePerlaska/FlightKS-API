@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Enums;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.FlightSchedules;
@@ -14,9 +15,9 @@ public static class AdminFlightSchedulesEndpoints
 
         group.MapGet("/", GetAll).WithName("AdminGetFlightSchedules");
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetFlightScheduleById");
-        group.MapPost("/", Create).WithName("AdminCreateFlightSchedule");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlightSchedule");
-        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateFlightScheduleStatus");
+        group.MapPost("/", Create).WithName("AdminCreateFlightSchedule").WithValidation<FlightScheduleCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlightSchedule").WithValidation<FlightScheduleUpdateDto>();
+        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateFlightScheduleStatus").WithValidation<FlightScheduleUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteFlightSchedule");
         group.MapGet("/{id:guid}/seats", GetSeats).WithName("AdminGetFlightScheduleSeats");
 

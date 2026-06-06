@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Auth;
 using FlightKS.Services.Interfaces;
@@ -17,7 +18,8 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", Logout)
             .RequireAuthorization()
-            .WithName("Logout");
+            .WithName("Logout")
+            .WithValidation<LogoutDto>();
 
         return app;
     }

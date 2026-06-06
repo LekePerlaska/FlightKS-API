@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Data;
+using FlightKS.Endpoints;
 using FlightKS.Enums;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Bookings;
@@ -16,7 +17,7 @@ public static class AdminBookingsEndpoints
 
         group.MapGet("/", GetAll).WithName("AdminGetBookings");
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetBookingById");
-        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateBookingStatus");
+        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateBookingStatus").WithValidation<BookingStatusUpdateDto>();
         group.MapGet("/{id:guid}/audit-logs", GetAuditLogs).WithName("AdminGetBookingAuditLogs");
 
         return app;

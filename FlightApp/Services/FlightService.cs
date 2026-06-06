@@ -78,11 +78,6 @@ public class FlightService(AppDbContext db) : IFlightService
     {
         flightNumber = flightNumber.Trim().ToUpperInvariant();
 
-        if (originAirportId == destinationAirportId)
-            throw new ValidationException("originAirportId", "Origin and destination airports must differ.");
-        if (basePrice <= 0)
-            throw new ValidationException("basePrice", "Base price must be greater than zero.");
-
         await ValidateActiveFlightReferencesAsync(airlineId, originAirportId, destinationAirportId, cancellationToken);
 
         var dup = await db.Flights.AsNoTracking()
@@ -123,8 +118,6 @@ public class FlightService(AppDbContext db) : IFlightService
 
         if (nextOriginAirportId == nextDestinationAirportId)
             throw new ValidationException("originAirportId", "Origin and destination airports must differ.");
-        if (basePrice is <= 0)
-            throw new ValidationException("basePrice", "Base price must be greater than zero.");
 
         if (airlineId is not null || originAirportId is not null || destinationAirportId is not null)
             await ValidateActiveFlightReferencesAsync(nextAirlineId, nextOriginAirportId, nextDestinationAirportId, cancellationToken);

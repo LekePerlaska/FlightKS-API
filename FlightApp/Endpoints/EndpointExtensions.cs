@@ -1,4 +1,5 @@
 using FlightKS.Exceptions;
+using FlightKS.Validation;
 using Microsoft.AspNetCore.Http.Metadata;
 
 namespace FlightKS.Endpoints;
@@ -20,4 +21,10 @@ public static class EndpointExtensions
         }
         return builder;
     }
+
+    /// <summary>
+    /// Adds FluentValidation for the given DTO type. No-op if no IValidator&lt;T&gt; is registered.
+    /// </summary>
+    public static RouteHandlerBuilder WithValidation<T>(this RouteHandlerBuilder builder)
+        => builder.AddEndpointFilter<ValidationFilter<T>>();
 }

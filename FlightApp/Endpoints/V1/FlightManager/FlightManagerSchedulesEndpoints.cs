@@ -1,6 +1,6 @@
 using System.Text;
 using FlightKS.Auth;
-using FlightKS.Exceptions;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.FlightManager;
@@ -19,11 +19,11 @@ public static class FlightManagerSchedulesEndpoints
             .RequireAuthorization(Policies.FlightManager);
 
         group.MapGet("/", GetAll).WithName("FlightManagerGetSchedules").AddEndpointFilter<RequireCurrentUserFilter>();
-        group.MapPatch("/{scheduleId:guid}", Patch).WithName("FlightManagerPatchSchedule");
+        group.MapPatch("/{scheduleId:guid}", Patch).WithName("FlightManagerPatchSchedule").WithValidation<FlightScheduleStatusUpdateDto>();
         group.MapGet("/{scheduleId:guid}/passengers", Passengers).WithName("FlightManagerSchedulePassengers");
         group.MapGet("/{scheduleId:guid}/flight-seats", Seats).WithName("FlightManagerScheduleSeats");
-        group.MapPatch("/{scheduleId:guid}/flight-seats/{seatId:guid}", SetSeatStatus).WithName("FlightManagerSetSeatStatus");
-        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers");
+        group.MapPatch("/{scheduleId:guid}/flight-seats/{seatId:guid}", SetSeatStatus).WithName("FlightManagerSetSeatStatus").WithValidation<FlightManagerSeatStatusUpdateDto>();
+        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers").WithValidation<NotifyPassengersDto>();
         group.MapGet("/{scheduleId:guid}/manifest/export", ExportManifest).WithName("FlightManagerExportManifest");
 
         return app;
@@ -62,9 +62,6 @@ public static class FlightManagerSchedulesEndpoints
 
     private static async Task<IResult> Notify(Guid scheduleId, NotifyPassengersDto dto, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(dto.Message))
-            throw new ValidationException("message", "A message is required.");
-
         var title = string.IsNullOrWhiteSpace(dto.Title) ? "Flight update" : dto.Title.Trim();
         var notified = await flightManager.NotifySchedulePassengersAsync(scheduleId, title, dto.Message.Trim(), cancellationToken);
         return notified is null ? TypedResults.NotFound() : TypedResults.Ok(new { notified });

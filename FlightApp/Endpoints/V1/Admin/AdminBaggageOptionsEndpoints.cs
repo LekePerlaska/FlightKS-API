@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.BaggageOptions;
@@ -13,9 +14,9 @@ public static class AdminBaggageOptionsEndpoints
         var group = app.MapGroup("/admin/baggage-options").WithTags("AdminBaggageOptions").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetBaggageOptions");
-        group.MapPost("/", Create).WithName("AdminCreateBaggageOption");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateBaggageOption");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleBaggageOptionStatus");
+        group.MapPost("/", Create).WithName("AdminCreateBaggageOption").WithValidation<BaggageOptionCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateBaggageOption").WithValidation<BaggageOptionUpdateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleBaggageOptionStatus").WithValidation<BaggageOptionUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteBaggageOption");
         group.MapPatch("/{id:guid}/restore", Restore).WithName("AdminRestoreBaggageOption");
 

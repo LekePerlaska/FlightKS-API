@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Data;
+using FlightKS.Endpoints;
 using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
@@ -18,9 +19,9 @@ public static class AdminAirlinesEndpoints
         var group = app.MapGroup("/admin/airlines").WithTags("AdminAirlines").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetAirlines");
-        group.MapPost("/", Create).WithName("AdminCreateAirline");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAirline");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAirlineStatus");
+        group.MapPost("/", Create).WithName("AdminCreateAirline").WithValidation<AirlineCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAirline").WithValidation<AirlineUpdateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAirlineStatus").WithValidation<AirlineUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteAirline");
         group.MapPatch("/{id:guid}/restore", Restore).WithName("AdminRestoreAirline");
         group.MapPost("/{id:guid}/logo", UploadLogo).WithName("AdminUploadAirlineLogo").DisableAntiforgery()

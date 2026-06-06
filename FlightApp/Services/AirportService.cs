@@ -3,7 +3,6 @@ using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using NodaTime;
 
 namespace FlightKS.Services;
 
@@ -43,11 +42,6 @@ public class AirportService(AppDbContext db) : IAirportService
         code = code.Trim().ToUpperInvariant();
         name = name.Trim();
 
-        if (string.IsNullOrWhiteSpace(timeZone))
-            throw new ValidationException("timeZone", "Timezone is required.");
-        if (DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) is null)
-            throw new ValidationException("timeZone", "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London.");
-
         var codeExists = await db.Airports.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(a => a.Code.ToLower() == code.ToLower(), cancellationToken);
         if (codeExists) throw new ConflictException($"Airport code '{code}' is already in use.");
@@ -69,9 +63,6 @@ public class AirportService(AppDbContext db) : IAirportService
 
         code = code?.Trim().ToUpperInvariant();
         name = name?.Trim();
-
-        if (timeZone is not null && DateTimeZoneProviders.Tzdb.GetZoneOrNull(timeZone) is null)
-            throw new ValidationException("timeZone", "Timezone must be a valid IANA timezone, for example Asia/Dubai or Europe/London.");
 
         if (code is not null)
         {
