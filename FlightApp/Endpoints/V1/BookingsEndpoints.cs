@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Enums;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
@@ -16,7 +17,8 @@ public static class BookingsEndpoints
             .RequireCurrentUser();
 
         group.MapPost("/", Create).WithName("CreateBooking")
-            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy)
+            .WithValidation<BookingCreateDto>();
         group.MapGet("/my", My).WithName("GetMyBookings");
         group.MapGet("/{bookingId:guid}/summary", Summary).WithName("GetBookingSummary");
         group.MapGet("/{bookingId:guid}/price-summary", PriceSummary).WithName("GetBookingPriceSummary");

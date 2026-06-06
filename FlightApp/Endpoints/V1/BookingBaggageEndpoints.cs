@@ -1,5 +1,5 @@
 using FlightKS.Auth;
-using FlightKS.Exceptions;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.BookingBaggage;
@@ -17,8 +17,8 @@ public static class BookingBaggageEndpoints
             .RequireCurrentUser();
 
         group.MapGet("/", GetForBooking).WithName("GetBookingBaggage");
-        group.MapPost("/", Add).WithName("AddBookingBaggage");
-        group.MapPut("/", Update).WithName("UpdateBookingBaggage");
+        group.MapPost("/", Add).WithName("AddBookingBaggage").WithValidation<BookingBaggageCreateDto>();
+        group.MapPut("/", Update).WithName("UpdateBookingBaggage").WithValidation<BookingBaggageUpdateDto>();
         group.MapDelete("/{bookingBaggageId:guid}", Remove).WithName("RemoveBookingBaggage");
 
         return app;
@@ -39,9 +39,6 @@ public static class BookingBaggageEndpoints
 
     private static async Task<IResult> Update(Guid bookingId, BookingBaggageUpdateDto dto, HttpContext httpContext, IBookingBaggageService baggage, CancellationToken cancellationToken)
     {
-        if (dto.Quantity < 1)
-            throw new ValidationException("quantity", "Quantity must be at least 1.");
-
         var item = await baggage.UpdateQuantityAsync(bookingId, dto.Id, httpContext.CurrentUserId(), dto.Quantity, cancellationToken);
         return item is null ? TypedResults.NotFound() : TypedResults.Ok(item.ToResponse());
     }

@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Passengers;
@@ -15,7 +16,7 @@ public static class BookingPassengersEndpoints
             .RequireAuthorization(Policies.User)
             .RequireCurrentUser();
 
-        group.MapPost("/", Add).WithName("AddBookingPassenger");
+        group.MapPost("/", Add).WithName("AddBookingPassenger").WithValidation<PassengerCreateDto>();
         group.MapPut("/", BulkUpdate).WithName("BulkUpdateBookingPassengers");
 
         return app;

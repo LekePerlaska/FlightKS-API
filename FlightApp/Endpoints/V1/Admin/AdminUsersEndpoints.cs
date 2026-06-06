@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Models.Dtos.Admin;
 using FlightKS.Services.Interfaces;
 
@@ -12,12 +13,12 @@ public static class AdminUsersEndpoints
         var rolesGroup = app.MapGroup("/admin/roles").WithTags("AdminUsers").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetUsers");
-        group.MapPost("/", Create).WithName("AdminCreateUser");
+        group.MapPost("/", Create).WithName("AdminCreateUser").WithValidation<AdminUserCreateDto>();
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetUserById");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateUser");
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateUser").WithValidation<AdminUserUpdateDto>();
         group.MapPatch("/{id:guid}/toggle-status", ToggleStatus).WithName("AdminToggleUserStatus");
         group.MapGet("/{id:guid}/roles", GetUserRoles).WithName("AdminGetUserRoles");
-        group.MapPut("/{id:guid}/roles", AssignRoles).WithName("AdminAssignUserRoles");
+        group.MapPut("/{id:guid}/roles", AssignRoles).WithName("AdminAssignUserRoles").WithValidation<AssignRolesDto>();
         rolesGroup.MapGet("/", GetRealmRoles).WithName("AdminGetRealmRoles");
 
         return app;

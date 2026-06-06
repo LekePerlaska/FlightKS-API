@@ -8,6 +8,7 @@ using FlightKS.Endpoints;
 using FlightKS.Endpoints.V1;
 using FlightKS.Endpoints.V1.Admin;
 using FlightKS.Endpoints.V1.FlightManager;
+using FluentValidation;
 using FlightKS.Enums;
 using FlightKS.Hubs;
 using FlightKS.Middleware;
@@ -254,6 +255,8 @@ builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
+
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
 
 var app = builder.Build();
 

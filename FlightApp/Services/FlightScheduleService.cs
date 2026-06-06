@@ -72,12 +72,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
 
     public async Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default)
     {
-        if (arrivalTime <= departureTime)
-            throw new ValidationException("arrivalTime", "Arrival time must be after departure time.");
-
-        if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
-            throw new ValidationException("classPrices", "Cabin class prices must be greater than zero.");
-
         var flight = await db.Flights
             .FirstOrDefaultAsync(f => f.Id == flightId && f.IsActive, cancellationToken)
             ?? throw new NotFoundException($"Active flight '{flightId}' not found.");
@@ -179,12 +173,6 @@ public class FlightScheduleService(AppDbContext db) : IFlightScheduleService
         var nextArrival = arrivalTime ?? schedule.ArrivalTime;
         if (nextArrival <= nextDeparture)
             throw new ValidationException("arrivalTime", "Arrival time must be after departure time.");
-
-        if (currentPrice is <= 0)
-            throw new ValidationException("currentPrice", "Current price must be greater than zero.");
-
-        if (classPrices is not null && classPrices.Values.Any(p => p <= 0))
-            throw new ValidationException("classPrices", "Cabin class prices must be greater than zero.");
 
         if (departureTime is not null || arrivalTime is not null)
             await EnsureAircraftIsFreeAsync(schedule.AircraftId, nextDeparture, nextArrival, excludeScheduleId: scheduleId, cancellationToken);

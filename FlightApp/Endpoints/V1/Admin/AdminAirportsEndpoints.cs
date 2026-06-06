@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Airports;
 using FlightKS.Services.Interfaces;
@@ -12,9 +13,9 @@ public static class AdminAirportsEndpoints
         var group = app.MapGroup("/admin/airports").WithTags("AdminAirports").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetAirports");
-        group.MapPost("/", Create).WithName("AdminCreateAirport");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAirport");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAirportStatus");
+        group.MapPost("/", Create).WithName("AdminCreateAirport").WithValidation<AirportCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAirport").WithValidation<AirportUpdateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAirportStatus").WithValidation<AirportUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteAirport");
 
         return app;

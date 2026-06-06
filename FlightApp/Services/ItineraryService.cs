@@ -96,11 +96,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
     public async Task<Itinerary> CreateFromSchedulesAsync(List<Guid> flightScheduleIds, CancellationToken cancellationToken = default)
     {
-        if (flightScheduleIds is null || flightScheduleIds.Count == 0)
-            throw new ValidationException("flightScheduleIds", "An itinerary must contain at least one flight schedule.");
-        if (flightScheduleIds.Distinct().Count() != flightScheduleIds.Count)
-            throw new ValidationException("flightScheduleIds", "An itinerary cannot use the same flight schedule twice.");
-
         var schedules = new List<FlightSchedule>(flightScheduleIds.Count);
         foreach (var scheduleId in flightScheduleIds)
         {
@@ -184,7 +179,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         var schedule = await LoadSegmentScheduleAsync(scheduleId, cancellationToken)
             ?? throw new NotFoundException($"Scheduled flight '{scheduleId}' not found.");
 
-        ValidateLayover(layoverMinutes);
         var candidates = itinerary.Segments
             .Select(s => new SegmentCandidate(s.SegmentOrder, s.LayoverMinutesAfterSegment, s.FlightSchedule))
             .Append(new SegmentCandidate(segmentOrder, layoverMinutes, schedule))
@@ -236,7 +230,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
         var nextOrder = segmentOrder ?? segment.SegmentOrder;
         var nextLayover = layoverMinutes ?? segment.LayoverMinutesAfterSegment;
-        ValidateLayover(nextLayover);
 
         var candidates = segment.Itinerary.Segments
             .Select(s => s.Id == segmentId
@@ -333,12 +326,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 s.Status == FlightScheduleStatus.Scheduled &&
                 s.Flight.IsActive,
                 cancellationToken);
-
-    private static void ValidateLayover(int? layoverMinutes)
-    {
-        if (layoverMinutes is < 0)
-            throw new ValidationException("layoverMinutes", "Layover minutes cannot be negative.");
-    }
 
     private static void ValidateSegmentChain(
         Guid itineraryOriginId,

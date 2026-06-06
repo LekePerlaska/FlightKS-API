@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Aircrafts;
 using FlightKS.Services.Interfaces;
@@ -12,12 +13,12 @@ public static class AdminAircraftsEndpoints
         var group = app.MapGroup("/admin/aircrafts").WithTags("AdminAircrafts").RequireAuthorization(Policies.Admin);
 
         group.MapGet("/", GetAll).WithName("AdminGetAircrafts");
-        group.MapPost("/", Create).WithName("AdminCreateAircraft");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAircraft");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAircraftStatus");
+        group.MapPost("/", Create).WithName("AdminCreateAircraft").WithValidation<AircraftCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateAircraft").WithValidation<AircraftUpdateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleAircraftStatus").WithValidation<AircraftUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteAircraft");
         group.MapGet("/{id:guid}/seats", GetSeats).WithName("AdminGetAircraftSeats");
-        group.MapPost("/{id:guid}/seats/batch", GenerateSeats).WithName("AdminGenerateAircraftSeats");
+        group.MapPost("/{id:guid}/seats/batch", GenerateSeats).WithName("AdminGenerateAircraftSeats").WithValidation<SeatBatchCreateDto>();
 
         return app;
     }

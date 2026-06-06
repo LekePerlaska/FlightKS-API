@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Notifications;
@@ -16,7 +17,7 @@ public static class NotificationsEndpoints
 
         group.MapGet("/", GetAll).WithName("GetNotifications");
         group.MapGet("/{notificationId:guid}", GetById).WithName("GetNotificationById");
-        group.MapPatch("/{notificationId:guid}", Update).WithName("UpdateNotification");
+        group.MapPatch("/{notificationId:guid}", Update).WithName("UpdateNotification").WithValidation<NotificationUpdateDto>();
         group.MapPatch("/", MarkAllRead).WithName("MarkAllNotificationsRead");
         group.MapDelete("/{notificationId:guid}", Delete).WithName("DeleteNotification");
 

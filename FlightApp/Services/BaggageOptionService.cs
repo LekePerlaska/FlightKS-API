@@ -1,5 +1,4 @@
 using FlightKS.Data;
-using FlightKS.Exceptions;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -29,12 +28,6 @@ public class BaggageOptionService(AppDbContext db) : IBaggageOptionService
     public async Task<BaggageOption> CreateAsync(string name, decimal weightKg, decimal price, string? description, CancellationToken cancellationToken = default)
     {
         name = name.Trim();
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ValidationException("name", "Name is required.");
-        if (weightKg < 0)
-            throw new ValidationException("weightKg", "Weight cannot be negative.");
-        if (price < 0)
-            throw new ValidationException("price", "Price cannot be negative.");
 
         var option = new BaggageOption
         {
@@ -54,18 +47,8 @@ public class BaggageOptionService(AppDbContext db) : IBaggageOptionService
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
         if (option is null) return null;
 
-        if (weightKg is < 0)
-            throw new ValidationException("weightKg", "Weight cannot be negative.");
-        if (price is < 0)
-            throw new ValidationException("price", "Price cannot be negative.");
-
         if (name is not null)
-        {
-            var trimmed = name.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed))
-                throw new ValidationException("name", "Name is required.");
-            option.Name = trimmed;
-        }
+            option.Name = name.Trim();
         if (weightKg is not null) option.WeightKg = weightKg.Value;
         if (price is not null) option.Price = price.Value;
         if (description is not null)

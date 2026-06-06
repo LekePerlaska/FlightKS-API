@@ -1,5 +1,5 @@
 using FlightKS.Auth;
-using FlightKS.Exceptions;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Itineraries;
 using FlightKS.Services.Interfaces;
@@ -16,17 +16,17 @@ public static class AdminItinerariesEndpoints
 
         group.MapGet("/", GetAll).WithName("AdminGetItineraries");
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetItineraryById");
-        group.MapPost("/", Create).WithName("AdminCreateItinerary");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleItineraryStatus");
+        group.MapPost("/", Create).WithName("AdminCreateItinerary").WithValidation<ItineraryCreateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleItineraryStatus").WithValidation<ItineraryUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteItinerary");
         group.MapGet("/{id:guid}/segments", GetSegments).WithName("AdminGetItinerarySegments");
-        group.MapPost("/{id:guid}/segments", AddSegment).WithName("AdminAddItinerarySegment");
+        group.MapPost("/{id:guid}/segments", AddSegment).WithName("AdminAddItinerarySegment").WithValidation<ItinerarySegmentCreateDto>();
 
         var segGroup = app.MapGroup("/admin/itinerary-segments")
             .WithTags("AdminItineraries")
             .RequireAuthorization(Policies.Admin);
 
-        segGroup.MapPut("/{segmentId:guid}", UpdateSegment).WithName("AdminUpdateItinerarySegment");
+        segGroup.MapPut("/{segmentId:guid}", UpdateSegment).WithName("AdminUpdateItinerarySegment").WithValidation<ItinerarySegmentUpdateDto>();
         segGroup.MapDelete("/{segmentId:guid}", DeleteSegment).WithName("AdminDeleteItinerarySegment");
 
         return app;
@@ -52,10 +52,7 @@ public static class AdminItinerariesEndpoints
 
     private static async Task<IResult> ToggleStatus(Guid id, ItineraryUpdateDto dto, IItineraryService itineraries, CancellationToken cancellationToken)
     {
-        if (dto.IsActive is null)
-            throw new ValidationException("isActive", "isActive is required.");
-
-        var updated = await itineraries.SetActiveAsync(id, dto.IsActive.Value, cancellationToken);
+        var updated = await itineraries.SetActiveAsync(id, dto.IsActive!.Value, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToSearchResult());
     }
 

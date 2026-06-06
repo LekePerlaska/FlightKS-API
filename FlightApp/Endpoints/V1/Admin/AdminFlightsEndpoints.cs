@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Flights;
 using FlightKS.Services.Interfaces;
@@ -13,9 +14,9 @@ public static class AdminFlightsEndpoints
 
         group.MapGet("/", GetAll).WithName("AdminGetFlights");
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetFlightById");
-        group.MapPost("/", Create).WithName("AdminCreateFlight");
-        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlight");
-        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleFlightStatus");
+        group.MapPost("/", Create).WithName("AdminCreateFlight").WithValidation<FlightCreateDto>();
+        group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlight").WithValidation<FlightUpdateDto>();
+        group.MapPatch("/{id:guid}", ToggleStatus).WithName("AdminToggleFlightStatus").WithValidation<FlightUpdateDto>();
 
         return app;
     }

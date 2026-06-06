@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Data;
+using FlightKS.Endpoints;
 using FlightKS.Exceptions;
 using FlightKS.Mappers;
 using FlightKS.Models.Dtos.Users;
@@ -15,15 +16,15 @@ public static class UsersEndpoints
     {
         var group = app.MapGroup("/users").WithTags("Users");
 
-        group.MapPost("/", Create).WithName("CreateUser");
+        group.MapPost("/", Create).WithName("CreateUser").WithValidation<UserCreateDto>();
         group.MapGet("/me", GetMe).WithName("GetCurrentUserProfile").RequireAuthorization();
-        group.MapPatch("/me", UpdateMe).WithName("UpdateCurrentUserProfile").RequireAuthorization();
+        group.MapPatch("/me", UpdateMe).WithName("UpdateCurrentUserProfile").RequireAuthorization().WithValidation<UserUpdateDto>();
         group.MapPost("/me/documents", UploadMyDocument)
             .WithName("UploadCurrentUserDocument")
             .DisableAntiforgery()
             .RequireAuthorization();
         group.MapGet("/{id:guid}", GetById).WithName("GetUserById");
-        group.MapPatch("/{id:guid}", Update).WithName("UpdateUser").RequireAuthorization();
+        group.MapPatch("/{id:guid}", Update).WithName("UpdateUser").RequireAuthorization().WithValidation<UserUpdateDto>();
 
         return app;
     }

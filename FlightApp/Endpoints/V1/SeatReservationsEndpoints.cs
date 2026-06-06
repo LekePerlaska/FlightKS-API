@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.SeatReservations;
 using FlightKS.Services.Interfaces;
@@ -15,7 +16,8 @@ public static class SeatReservationsEndpoints
             .RequireCurrentUser();
 
         group.MapPost("/", Reserve).WithName("ReserveSeat")
-            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy)
+            .WithValidation<SeatReservationCreateDto>();
         group.MapDelete("/{flightSeatId:guid}", Release).WithName("ReleaseSeat");
 
         return app;

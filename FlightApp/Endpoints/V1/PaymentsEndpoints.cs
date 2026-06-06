@@ -1,4 +1,5 @@
 using FlightKS.Auth;
+using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
 using FlightKS.Models.Dtos.Payments;
@@ -15,7 +16,8 @@ public static class PaymentsEndpoints
             .RequireCurrentUser();
 
         group.MapPost("/", Create).WithName("CreatePayment")
-            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
+            .RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy)
+            .WithValidation<PaymentCreateDto>();
 
         return app;
     }
