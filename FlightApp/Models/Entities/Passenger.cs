@@ -10,9 +10,12 @@ public class Passenger
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public DateOnly DateOfBirth { get; set; }
-    public PassengerType Type { get; set; }
+    public string? Gender { get; set; }
     public string? PassportNumber { get; set; }
     public string? Nationality { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public ICollection<PassengerSegment> Segments { get; set; } = [];
+    public ICollection<Ticket> Tickets { get; set; } = [];
+    public ICollection<BookingBaggage> BookingBaggage { get; set; } = [];
 }

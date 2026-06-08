@@ -52,3 +52,16 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# .NET user secrets are stored outside project normally, but keep local secret files ignored
+secrets.json
+appsettings.Secrets.json
+
+# Local appsettings overrides
+appsettings.Local.json
+appsettings.Development.local.json
