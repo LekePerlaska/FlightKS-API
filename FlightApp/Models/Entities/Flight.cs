@@ -3,24 +3,24 @@ namespace FlightKS.Models.Entities;
 public class Flight
 {
     public Guid Id { get; set; }
-    public required string FlightNumber { get; set; } // e.g. "JU 450"
 
     public Guid AirlineId { get; set; }
     public Airline Airline { get; set; } = null!;
 
-    public Guid AircraftId { get; set; }
-    public Aircraft Aircraft { get; set; } = null!;
+    public required string FlightNumber { get; set; }
 
-    public Guid DepartureAirportId { get; set; }
-    public Airport DepartureAirport { get; set; } = null!;
+    public Guid OriginAirportId { get; set; }
+    public Airport OriginAirport { get; set; } = null!;
 
-    public Guid ArrivalAirportId { get; set; }
-    public Airport ArrivalAirport { get; set; } = null!;
+    public Guid DestinationAirportId { get; set; }
+    public Airport DestinationAirport { get; set; } = null!;
 
-    public DateTime DepartureTime { get; set; }
-    public DateTime ArrivalTime { get; set; }
-    public FlightStatus Status { get; set; }
+    public decimal BasePrice { get; set; }
+    public int DurationMinutes { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? DeletedAt { get; set; }
 
-    public ICollection<FlightFare> Fares { get; set; } = [];
-    public ICollection<BookingSegment> BookingSegments { get; set; } = [];
+    public ICollection<FlightSchedule> FlightSchedules { get; set; } = [];
 }
