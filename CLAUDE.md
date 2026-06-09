@@ -26,7 +26,22 @@ Service URLs once up:
 
 EF Core migrations are generated via an SDK 10 container (not the host); the app applies pending migrations on startup via `MigrateAsync` in `Program.cs`.
 
-There are currently no test projects. `FlightApp/FlightKS.http` contains sample API requests for the VS Code REST Client extension.
+Test projects live under `tests/`. Because the host SDK is 8.0, tests also run inside an SDK 10 container:
+
+```bash
+# Pure unit tests (validators, mappers — no Docker socket needed)
+docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/FlightKS.UnitTests
+
+# Service tests (Testcontainers spins a real Postgres)
+# --network=host lets the SDK container reach the mapped Postgres port
+# TESTCONTAINERS_RYUK_DISABLED=true skips the Ryuk reaper (can't start privileged containers inside Docker)
+docker run --rm --network=host -v $(pwd):/src -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/FlightKS.ServiceTests
+
+# All tests at once
+docker run --rm --network=host -v $(pwd):/src -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test FlightKS.sln
+```
+
+`FlightApp/FlightKS.http` contains sample API requests for the VS Code REST Client extension.
 
 ## Architecture
 
