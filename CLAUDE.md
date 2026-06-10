@@ -37,6 +37,9 @@ docker run --rm -v $(pwd):/src -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet 
 # TESTCONTAINERS_RYUK_DISABLED=true skips the Ryuk reaper (can't start privileged containers inside Docker)
 docker run --rm --network=host -v $(pwd):/src -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/FlightKS.ServiceTests
 
+# Integration tests (full ASP.NET Core host + Testcontainers Postgres + test auth scheme)
+docker run --rm --network=host -v $(pwd):/src -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test tests/FlightKS.IntegrationTests
+
 # All tests at once
 docker run --rm --network=host -v $(pwd):/src -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_RYUK_DISABLED=true -w /src mcr.microsoft.com/dotnet/sdk:10.0 dotnet test FlightKS.sln
 ```
