@@ -384,3 +384,6 @@ app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard").DisableRateLimiting();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+// Exposes Program to WebApplicationFactory<Program> in integration tests.
+public partial class Program { }
