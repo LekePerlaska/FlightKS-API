@@ -17,7 +17,7 @@ public record AircraftCreateDto(
     Guid AirlineId,
     string Model,
     string RegistrationNumber,
-    int TotalSeats);
+    int TotalSeats = 0);
 
 public record AircraftUpdateDto(
     Guid? AirlineId,
