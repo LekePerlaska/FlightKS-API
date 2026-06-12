@@ -124,8 +124,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         options.TokenValidationParameters = new()
         {
             ValidateAudience = false,
-            // Token iss is localhost:8080 but authority inside Docker is keycloak:8080
-            ValidateIssuer = false,
+            ValidateIssuer = true,
             NameClaimType = "preferred_username",
         };
         options.Events = new JwtBearerEvents
