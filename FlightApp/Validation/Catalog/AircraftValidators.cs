@@ -18,7 +18,7 @@ public sealed class AircraftCreateValidator : AbstractValidator<AircraftCreateDt
         RuleFor(x => x.AirlineId).NotEqual(Guid.Empty);
         RuleFor(x => x.Model).NotEmpty().MaximumLength(100);
         RuleFor(x => x.RegistrationNumber).NotEmpty().MaximumLength(20);
-        RuleFor(x => x.TotalSeats).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.TotalSeats).GreaterThan(0);
     }
 }
 
