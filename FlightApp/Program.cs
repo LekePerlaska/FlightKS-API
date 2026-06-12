@@ -122,9 +122,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             // doesn't resolve inside Docker — rewrite to the internal service name.
             options.BackchannelHttpHandler = new KeycloakBackchannelHandler(new HttpClientHandler());
         }
+        var audience = builder.Configuration["Keycloak:Audience"];
         options.TokenValidationParameters = new()
         {
-            ValidateAudience = false,
+            ValidateAudience = !string.IsNullOrEmpty(audience),
+            ValidAudiences = string.IsNullOrEmpty(audience) ? [] : [audience],
             ValidateIssuer = true,
             NameClaimType = "preferred_username",
         };
