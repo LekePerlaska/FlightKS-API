@@ -264,7 +264,15 @@ builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
 
-builder.Services.AddHealthChecks();
+var hcBuilder = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("postgres");
+
+if (rateLimitOptions.Store == RateLimitStore.Distributed)
+    hcBuilder.Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+        "redis",
+        sp => new FlightKS.HealthChecks.RedisHealthCheck(sp.GetRequiredService<IConnectionMultiplexer>()),
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+        ["redis"]));
 
 var app = builder.Build();
 
@@ -401,7 +409,23 @@ app.MapHub<SeatHub>("/hubs/seats").DisableRateLimiting();
 app.MapHub<NotificationHub>("/hubs/notifications").DisableRateLimiting();
 app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard").DisableRateLimiting();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (ctx, report) =>
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+            }),
+        });
+    },
+});
 
 app.Run();
 
