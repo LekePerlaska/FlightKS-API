@@ -41,9 +41,3 @@ public record AdminUserUpdateDto(
 public record AssignRolesDto(IReadOnlyList<string> Roles);
 
 public record AdminRoleDto(string Id, string Name);
-
-public record AdminUsersPageDto(
-    IReadOnlyList<AdminUserListItemDto> Items,
-    int Total,
-    int Page,
-    int PageSize);
