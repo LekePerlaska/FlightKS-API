@@ -1,0 +1,37 @@
+using FlightKS.Models.Dtos.Flights;
+using FlightKS.Models.Entities;
+
+namespace FlightKS.Mappers;
+
+public static class FlightMapping
+{
+    private static int DurationMinutes(DateTime departure, DateTime arrival) =>
+        Math.Max(0, (int)Math.Round((arrival - departure).TotalMinutes));
+
+    public static FlightScheduleSearchResultDto ToSearchResult(this FlightSchedule s) => new(
+        s.Id,
+        s.FlightId,
+        s.Flight.FlightNumber,
+        s.Flight.Airline?.ToDto() ?? throw new InvalidOperationException($"Flight {s.Flight.FlightNumber} has no active airline."),
+        s.Flight.OriginAirport.ToDto(),
+        s.Flight.DestinationAirport.ToDto(),
+        s.DepartureTime,
+        s.ArrivalTime,
+        DurationMinutes(s.DepartureTime, s.ArrivalTime),
+        s.CurrentPrice,
+        s.AvailableSeats);
+
+    public static FlightAdminListItemDto ToAdminListItem(this Flight f) => new(
+        f.Id,
+        f.FlightNumber,
+        f.AirlineId,
+        f.Airline?.Name ?? string.Empty,
+        f.Airline?.Code ?? string.Empty,
+        f.OriginAirport.ToDto(),
+        f.DestinationAirport.ToDto(),
+        f.BasePrice,
+        f.DurationMinutes,
+        f.IsActive,
+        f.CreatedAt,
+        f.UpdatedAt);
+}
