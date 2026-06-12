@@ -50,6 +50,7 @@ services:
 
     volumes:
       - dp_keys:/app/dp-keys
+      - uploads:/app/wwwroot/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -179,3 +180,4 @@ volumes:
   grafana_data:
   redis_data:
   dp_keys:
+  uploads:
