@@ -1,4 +1,23 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    profiles: [production]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: .env
+    depends_on:
+      - frontend
+      - api
+      - keycloak
+    networks:
+      - flightks-net
+
   frontend:
     image: node:24-alpine
     working_dir: /app
@@ -47,6 +66,9 @@ services:
       # Used only when RateLimiting:Store = Distributed. Safe to leave set in InMemory mode.
       # To enable: set RateLimiting__Store=Distributed here (or via env at deploy time).
       - RateLimiting__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD}
+
+      # Trust the Docker bridge network so X-Forwarded-* headers from Caddy are accepted.
+      - ForwardedHeaders__KnownNetworks__0=172.16.0.0/12
 
     volumes:
       - dp_keys:/app/dp-keys
@@ -181,3 +203,5 @@ volumes:
   redis_data:
   dp_keys:
   uploads:
+  caddy_data:
+  caddy_config:
