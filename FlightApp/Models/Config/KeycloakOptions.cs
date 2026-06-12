@@ -17,6 +17,9 @@ public class KeycloakOptions
     /// <summary>Public (SPA) client used by the frontend — needed for the logout token revocation call.</summary>
     public string FrontendClientId { get; init; } = string.Empty;
 
+    /// <summary>Audience value embedded in JWTs by the Keycloak audience mapper (e.g. "flightks-api").</summary>
+    public string Audience { get; init; } = string.Empty;
+
     public string TokenUrl => $"{Authority}/protocol/openid-connect/token";
     public string LogoutUrl => $"{Authority}/protocol/openid-connect/logout";
 }
