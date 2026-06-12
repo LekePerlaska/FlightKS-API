@@ -9,7 +9,7 @@
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5433;Database=flightks;Username=postgres;Password=valezA"
+    "DefaultConnection": "Host=localhost;Port=5433;Database=flightks;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>"
   },
   "Loki": {
     "Uri": "http://localhost:3100"
@@ -18,9 +18,9 @@
     "Authority": "http://localhost:8080/realms/flightks",
     "RequireHttpsMetadata": false,
     "AdminApiBaseUrl": "http://localhost:8080/admin/realms/flightks",
-    "AdminClientId": "",
-    "AdminClientSecret": "",
-    "FrontendClientId": ""
+    "AdminClientId": "<KEYCLOAK_ADMIN_CLIENT_ID>",
+    "AdminClientSecret": "<KEYCLOAK_ADMIN_CLIENT_SECRET>",
+    "FrontendClientId": "<KEYCLOAK_FRONTEND_CLIENT_ID>"
   },
   "Cors": {
     "AllowedOrigins": [ "http://localhost:3000" ]
