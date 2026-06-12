@@ -17,6 +17,7 @@ using FlightKS.Services;
 using FlightKS.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using StackExchange.Redis;
@@ -185,6 +186,10 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IKeycloakService, KeycloakService>();
 builder.Services.AddSignalR();
+
+var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/dp-keys";
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
