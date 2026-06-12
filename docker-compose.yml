@@ -111,7 +111,7 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
 
-    command: start-dev
+    command: start --http-enabled=true --hostname-strict=false
     depends_on:
       keycloak-db:
         condition: service_healthy
