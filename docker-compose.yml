@@ -28,7 +28,7 @@ services:
     ports:
       - "5194:5194"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_HTTP_PORTS=5194
 
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=flightks;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
@@ -36,15 +36,20 @@ services:
       - Loki__Uri=http://loki:3100
 
       - Keycloak__Authority=http://keycloak:8080/realms/flightks
+      - Keycloak__RequireHttpsMetadata=false
       - Keycloak__AdminApiBaseUrl=http://keycloak:8080/admin/realms/flightks
       - Keycloak__AdminClientId=${KEYCLOAK_ADMIN_CLIENT_ID}
       - Keycloak__AdminClientSecret=${KEYCLOAK_ADMIN_CLIENT_SECRET}
       - Keycloak__FrontendClientId=${KEYCLOAK_FRONTEND_CLIENT_ID}
 
+      - Cors__AllowedOrigins__0=http://localhost:3000
+
       # Used only when RateLimiting:Store = Distributed. Safe to leave set in InMemory mode.
       # To enable: set RateLimiting__Store=Distributed here (or via env at deploy time).
       - RateLimiting__RedisConnectionString=redis:6379
 
+    volumes:
+      - dp_keys:/app/dp-keys
     depends_on:
       postgres:
         condition: service_healthy
@@ -171,3 +176,4 @@ volumes:
   loki_data:
   grafana_data:
   redis_data:
+  dp_keys:
