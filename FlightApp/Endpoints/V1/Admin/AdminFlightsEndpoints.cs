@@ -31,7 +31,7 @@ public static class AdminFlightsEndpoints
         int pageSize = 20)
     {
         var (items, total) = await flights.GetAllForAdminAsync(search, isActive, page, pageSize, cancellationToken);
-        return TypedResults.Ok(new { items = items.Select(f => f.ToAdminListItem()), total, page, pageSize });
+        return TypedResults.Ok(new PagedResult<FlightAdminListItemDto>(items.Select(f => f.ToAdminListItem()).ToList(), total, page, pageSize));
     }
 
     private static async Task<IResult> GetById(Guid id, IFlightService flights, CancellationToken cancellationToken)

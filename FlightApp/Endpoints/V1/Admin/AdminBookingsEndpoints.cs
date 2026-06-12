@@ -3,6 +3,7 @@ using FlightKS.Data;
 using FlightKS.Endpoints;
 using FlightKS.Enums;
 using FlightKS.Mappers;
+using FlightKS.Models.Dtos;
 using FlightKS.Models.Dtos.Bookings;
 using FlightKS.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,7 @@ public static class AdminBookingsEndpoints
         int pageSize = 20)
     {
         var (items, total) = await bookings.GetAllForAdminAsync(search, status, page, pageSize, cancellationToken);
-        return TypedResults.Ok(new { items = items.Select(b => b.ToAdminListItem()), total, page, pageSize });
+        return TypedResults.Ok(new PagedResult<AdminBookingListItemDto>(items.Select(b => b.ToAdminListItem()).ToList(), total, page, pageSize));
     }
 
     private static async Task<IResult> GetById(Guid id, IBookingService bookings, CancellationToken cancellationToken)
