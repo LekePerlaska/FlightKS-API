@@ -135,7 +135,9 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
 
-    command: start --http-enabled=true --hostname-strict=false
+    command: start --http-enabled=true --hostname-strict=false --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
       keycloak-db:
         condition: service_healthy
