@@ -267,11 +267,11 @@ builder.Services.AddHealthChecks();
 var app = builder.Build();
 
 // ForwardedHeaders — must be first so the real client IP is visible to both
-// UseSerilogRequestLogging and the rate limiter (Phase 5).
-// Dev: trust all sources because Docker's bridge network uses non-loopback IPs
-//      and there is no reverse proxy in the compose stack.
-// Prod: populate ForwardedHeaders:KnownProxies in config with the actual proxy
-//       CIDR/IPs before deploying behind a reverse proxy, to prevent IP spoofing.
+// UseSerilogRequestLogging and the rate limiter.
+// Dev: trust all sources (no reverse proxy in the compose stack).
+// Prod: set ForwardedHeaders:KnownProxies (individual IPs) and/or
+//       ForwardedHeaders:KnownNetworks (CIDR ranges, e.g. 172.16.0.0/12 for
+//       the Docker bridge network when Caddy runs as a sidecar container).
 var fwdOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
@@ -290,6 +290,20 @@ else
     {
         if (System.Net.IPAddress.TryParse(proxy, out var ip))
             fwdOptions.KnownProxies.Add(ip);
+    }
+
+    var knownNetworks = builder.Configuration
+        .GetSection("ForwardedHeaders:KnownNetworks")
+        .Get<string[]>() ?? [];
+    foreach (var network in knownNetworks)
+    {
+        var parts = network.Split('/');
+        if (parts.Length == 2 &&
+            System.Net.IPAddress.TryParse(parts[0], out var prefix) &&
+            int.TryParse(parts[1], out var prefixLength))
+        {
+            fwdOptions.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+        }
     }
 }
 app.UseForwardedHeaders(fwdOptions);
