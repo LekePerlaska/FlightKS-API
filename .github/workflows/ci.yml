@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [master, staging, development]
+  pull_request:
+    branches: [master, staging]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run unit tests
+        run: dotnet test tests/FlightKS.UnitTests --configuration Release
+
+  service-integration-tests:
+    name: Service & Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run service tests
+        run: dotnet test tests/FlightKS.ServiceTests --configuration Release
+
+      - name: Run integration tests
+        run: dotnet test tests/FlightKS.IntegrationTests --configuration Release
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [unit-tests, service-integration-tests]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t flightks-api:${{ github.sha }} .
