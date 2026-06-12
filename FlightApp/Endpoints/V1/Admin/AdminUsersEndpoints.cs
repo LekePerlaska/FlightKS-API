@@ -1,5 +1,6 @@
 using FlightKS.Auth;
 using FlightKS.Endpoints;
+using FlightKS.Models.Dtos;
 using FlightKS.Models.Dtos.Admin;
 using FlightKS.Services.Interfaces;
 
@@ -54,7 +55,7 @@ public static class AdminUsersEndpoints
             u.CreatedAt,
             allRoles[i])).ToList();
 
-        return TypedResults.Ok(new AdminUsersPageDto(dtos, total, page, pageSize));
+        return TypedResults.Ok(new PagedResult<AdminUserListItemDto>(dtos, total, page, pageSize));
     }
 
     private static async Task<IResult> Create(
