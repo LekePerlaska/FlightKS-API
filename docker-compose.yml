@@ -64,8 +64,7 @@ services:
 
       - Cors__AllowedOrigins__0=http://localhost:3000
 
-      # Used only when RateLimiting:Store = Distributed. Safe to leave set in InMemory mode.
-      # To enable: set RateLimiting__Store=Distributed here (or via env at deploy time).
+      - RateLimiting__Store=Distributed
       - RateLimiting__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD}
 
       # Trust the Docker bridge network so X-Forwarded-* headers from Caddy are accepted.
