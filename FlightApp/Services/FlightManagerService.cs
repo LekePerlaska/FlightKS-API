@@ -112,6 +112,9 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
             .FirstOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
         if (ticket is null) return null;
 
+        if (ticket.Booking.Status != BookingStatus.Confirmed)
+            throw new BusinessRuleException("Cannot check in a passenger whose booking has not been confirmed (payment required).");
+
         switch (ticket.TicketStatus)
         {
             case TicketStatus.CheckedIn:

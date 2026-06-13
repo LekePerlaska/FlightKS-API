@@ -252,7 +252,8 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
     {
         var statusChanged = schedule.Status != oldStatus;
         var departureChanged = schedule.DepartureTime != oldDeparture;
-        var gateChanged = schedule.Gate != oldGate && schedule.Gate is not null;
+        // Fire on any gate value change, including clearing to null — passengers need to know.
+        var gateChanged = schedule.Gate != oldGate;
 
         if (!statusChanged && !departureChanged && !gateChanged) return;
 
@@ -311,9 +312,12 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
 
             if (gateChanged && schedule.Status != FlightScheduleStatus.Cancelled)
             {
+                var gateMessage = schedule.Gate is not null
+                    ? $"Flight {flightNumber} now departs from gate {schedule.Gate}."
+                    : $"The gate assignment for flight {flightNumber} has been removed. Please check airport displays.";
                 await notificationService.CreateAsync(userId,
                     "Gate Change",
-                    $"Flight {flightNumber} now departs from gate {schedule.Gate}.",
+                    gateMessage,
                     "flight_gate_changed",
                     relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
                     cancellationToken: cancellationToken);
@@ -355,6 +359,9 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
         return true;
     }
 
+    // TODO: FlightManager-to-Airline scoping requires a schema addition (FlightManagerAirline join table).
+    // Until that exists, this returns all active schedules. Track in backlog before exposing to
+    // multi-tenant environments where managers from different airlines must be isolated.
     public async Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default) =>
         await db.FlightSchedules.AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
@@ -424,7 +431,9 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
 
     private async Task EnsureAircraftIsFreeAsync(Guid aircraftId, DateTime departure, DateTime arrival, Guid? excludeScheduleId, CancellationToken cancellationToken)
     {
-        var clash = await db.FlightSchedules.AsNoTracking()
+        // IgnoreQueryFilters so soft-deleted schedules are included — a deleted schedule
+        // still physically occupied the aircraft's time slot and must block re-scheduling.
+        var clash = await db.FlightSchedules.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(s =>
                 s.AircraftId == aircraftId &&
                 s.Id != excludeScheduleId &&

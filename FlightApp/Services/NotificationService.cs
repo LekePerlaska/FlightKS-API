@@ -37,10 +37,12 @@ public class NotificationService(
         var unreadCount = await db.Notifications
             .CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
 
+        // Use CancellationToken.None so a client disconnect after SaveChangesAsync does not
+        // abort the push and surface a false 500 to the caller (the DB row is already committed).
         await hub.Clients.Group($"user:{userId}")
             .SendAsync(NotificationHub.NotificationReceived,
                 new { notification = notification.ToDto(), unreadCount },
-                cancellationToken);
+                CancellationToken.None);
 
         if (sendEmail && !string.IsNullOrEmpty(emailSubject) && !string.IsNullOrEmpty(emailHtml))
         {
@@ -53,7 +55,9 @@ public class NotificationService(
                 _ = emailSender.SendAsync(user.Email, user.FullName, emailSubject, emailHtml, CancellationToken.None)
                     .ContinueWith(
                         t => logger.LogError(t.Exception, "Failed to send email '{Subject}' to {Email}", emailSubject, user.Email),
-                        TaskContinuationOptions.OnlyOnFaulted);
+                        CancellationToken.None,
+                        TaskContinuationOptions.OnlyOnFaulted,
+                        TaskScheduler.Default);
         }
 
         return notification;

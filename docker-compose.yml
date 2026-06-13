@@ -67,7 +67,7 @@ services:
       - RateLimiting__Store=Distributed
       - RateLimiting__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD}
 
-      - SignalR__RedisConnectionString=redis:6379
+      - SignalR__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD},abortConnect=false
 
       # SMTP email delivery. Leave Email__Host empty to disable (NullEmailSender).
       - Email__Host=${EMAIL_HOST:-}
