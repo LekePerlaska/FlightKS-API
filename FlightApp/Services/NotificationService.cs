@@ -1,12 +1,64 @@
 using FlightKS.Data;
+using FlightKS.Hubs;
+using FlightKS.Mappers;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class NotificationService(AppDbContext db) : INotificationService
+public class NotificationService(
+    AppDbContext db,
+    IHubContext<NotificationHub> hub,
+    IEmailSender emailSender,
+    ILogger<NotificationService> logger) : INotificationService
 {
+    public async Task<Notification> CreateAsync(
+        Guid userId, string title, string message, string type,
+        string? relatedEntityName = null, Guid? relatedEntityId = null,
+        bool sendEmail = false, string? emailSubject = null, string? emailHtml = null,
+        CancellationToken cancellationToken = default)
+    {
+        var notification = new Notification
+        {
+            UserId = userId,
+            Title = title,
+            Message = message,
+            Type = type,
+            IsRead = false,
+            RelatedEntityName = relatedEntityName,
+            RelatedEntityId = relatedEntityId,
+            CreatedAt = DateTime.UtcNow,
+        };
+        db.Notifications.Add(notification);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var unreadCount = await db.Notifications
+            .CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
+
+        await hub.Clients.Group($"user:{userId}")
+            .SendAsync(NotificationHub.NotificationReceived,
+                new { notification = notification.ToDto(), unreadCount },
+                cancellationToken);
+
+        if (sendEmail && !string.IsNullOrEmpty(emailSubject) && !string.IsNullOrEmpty(emailHtml))
+        {
+            var user = await db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.Email, u.FullName })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (user is not null && !string.IsNullOrEmpty(user.Email))
+                _ = emailSender.SendAsync(user.Email, user.FullName, emailSubject, emailHtml, CancellationToken.None)
+                    .ContinueWith(
+                        t => logger.LogError(t.Exception, "Failed to send email '{Subject}' to {Email}", emailSubject, user.Email),
+                        TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        return notification;
+    }
+
     public async Task<(IReadOnlyList<Notification> Items, int Total)> GetForUserAsync(
         Guid userId, bool? unreadOnly, int page, int pageSize, CancellationToken cancellationToken = default)
     {

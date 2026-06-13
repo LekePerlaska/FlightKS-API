@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
+public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub, INotificationService notificationService)
     : IFlightManagerService
 {
     public async Task<IEnumerable<FlightManagerSeatDto>> GetSeatsAsync(Guid scheduleId, CancellationToken cancellationToken = default)
@@ -104,6 +104,11 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
     public async Task<Ticket?> CheckInTicketAsync(Guid ticketId, CancellationToken cancellationToken = default)
     {
         var ticket = await db.Tickets
+            .Include(t => t.Booking)
+            .Include(t => t.Passenger)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Include(t => t.FlightSeat).ThenInclude(fs => fs!.Seat)
             .FirstOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
         if (ticket is null) return null;
 
@@ -121,6 +126,21 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
         ticket.TicketStatus = TicketStatus.CheckedIn;
         ticket.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+
+        var passengerName = $"{ticket.Passenger.FirstName} {ticket.Passenger.LastName}";
+        var flightNumber = ticket.FlightSchedule.Flight.FlightNumber;
+        var origin = ticket.FlightSchedule.Flight.OriginAirport.Code;
+        var destination = ticket.FlightSchedule.Flight.DestinationAirport.Code;
+        var departure = ticket.FlightSchedule.DepartureTime;
+        var seatNumber = ticket.FlightSeat?.Seat?.SeatNumber;
+
+        await notificationService.CreateAsync(ticket.Booking.UserId,
+            "Check-In Confirmed",
+            $"{passengerName} is checked in for flight {flightNumber} ({origin} → {destination}), departing {departure:dd MMM HH:mm} UTC.",
+            "check_in_confirmed",
+            relatedEntityName: "Ticket", relatedEntityId: ticket.Id,
+            cancellationToken: cancellationToken);
+
         return ticket;
     }
 
@@ -138,22 +158,14 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var now = DateTime.UtcNow;
         foreach (var userId in userIds)
-        {
-            db.Notifications.Add(new Notification
-            {
-                UserId = userId,
-                Title = title,
-                Message = message,
-                Type = "general",
-                IsRead = false,
-                RelatedEntityName = "FlightSchedule",
-                RelatedEntityId = scheduleId,
-                CreatedAt = now,
-            });
-        }
-        await db.SaveChangesAsync(cancellationToken);
+            await notificationService.CreateAsync(userId, title, message, "general",
+                relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
+                sendEmail: true,
+                emailSubject: title,
+                emailHtml: EmailTemplates.FlightUpdate(title, message),
+                cancellationToken: cancellationToken);
+
         return userIds.Count;
     }
 }

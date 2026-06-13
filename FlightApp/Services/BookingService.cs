@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class BookingService(AppDbContext db) : IBookingService
+public class BookingService(AppDbContext db, INotificationService notificationService) : IBookingService
 {
     public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, SeatClass? cabinClass = null, CancellationToken cancellationToken = default)
     {
@@ -73,12 +73,49 @@ public class BookingService(AppDbContext db) : IBookingService
 
     public async Task<Booking?> UpdateStatusAsync(Guid bookingId, BookingStatus status, CancellationToken cancellationToken = default)
     {
-        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
+        var booking = await db.Bookings
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
         if (booking is null) return null;
 
+        var oldStatus = booking.Status;
         booking.Status = status;
         booking.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+
+        if (status != oldStatus)
+        {
+            var (title, message, type, emailSubject, emailHtml) = status switch
+            {
+                BookingStatus.Cancelled => (
+                    "Booking Cancelled",
+                    $"Your booking {booking.BookingReference} has been cancelled.",
+                    "booking_cancelled",
+                    $"Booking Cancelled – {booking.BookingReference}",
+                    EmailTemplates.BookingCancelled(booking.User.FullName, booking.BookingReference)),
+                BookingStatus.Confirmed => (
+                    "Booking Confirmed",
+                    $"Your booking {booking.BookingReference} has been confirmed.",
+                    "booking_confirmed",
+                    (string?)null,
+                    (string?)null),
+                _ => (
+                    "Booking Updated",
+                    $"Your booking {booking.BookingReference} status has been updated to {status}.",
+                    "booking_updated",
+                    (string?)null,
+                    (string?)null)
+            };
+
+            await notificationService.CreateAsync(booking.UserId,
+                title, message, type,
+                relatedEntityName: "Booking", relatedEntityId: booking.Id,
+                sendEmail: emailSubject is not null,
+                emailSubject: emailSubject,
+                emailHtml: emailHtml,
+                cancellationToken: cancellationToken);
+        }
+
         return booking;
     }
 
@@ -102,12 +139,23 @@ public class BookingService(AppDbContext db) : IBookingService
 
     public async Task<bool> CancelAsync(Guid bookingId, Guid ownerUserId, CancellationToken cancellationToken = default)
     {
-        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken);
+        var booking = await db.Bookings
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken);
         if (booking is null) return false;
 
         booking.Status = BookingStatus.Cancelled;
         booking.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+
+        await notificationService.CreateAsync(
+            booking.UserId,
+            "Booking Cancelled",
+            $"Your booking {booking.BookingReference} has been cancelled.",
+            "booking_cancelled",
+            relatedEntityName: "Booking", relatedEntityId: booking.Id,
+            cancellationToken: cancellationToken);
+
         return true;
     }
 

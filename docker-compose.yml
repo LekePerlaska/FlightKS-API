@@ -67,16 +67,23 @@ services:
       - RateLimiting__Store=Distributed
       - RateLimiting__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD}
 
-      # Trust the Docker bridge network so X-Forwarded-* headers from Caddy are accepted.
-      - ForwardedHeaders__KnownNetworks__0=172.16.0.0/12
+      - SignalR__RedisConnectionString=redis:6379
 
-    volumes:
-      - dp_keys:/app/dp-keys
-      - uploads:/app/wwwroot/uploads
+      # SMTP email delivery. Leave Email__Host empty to disable (NullEmailSender).
+      - Email__Host=${EMAIL_HOST:-}
+      - Email__Port=${EMAIL_PORT:-587}
+      - Email__UseSsl=${EMAIL_USE_SSL:-true}
+      - Email__Username=${EMAIL_USERNAME:-}
+      - Email__Password=${EMAIL_PASSWORD:-}
+      - Email__FromAddress=${EMAIL_FROM_ADDRESS:-}
+      - Email__FromName=${EMAIL_FROM_NAME:-FlightKS}
+
     depends_on:
       postgres:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       loki:
         condition: service_started
