@@ -34,7 +34,11 @@ internal sealed class SeedData(AppDbContext db)
     {
         var airport = new Airport
         {
-            Code = code, Name = name, City = city, Country = country, TimeZone = tz
+            Code = code,
+            Name = name,
+            City = city,
+            Country = country,
+            TimeZone = tz
         };
         db.Airports.Add(airport);
         await db.SaveChangesAsync();
@@ -281,8 +285,11 @@ internal sealed class SeedData(AppDbContext db)
     {
         var n = new FlightKS.Models.Entities.Notification
         {
-            UserId = userId, Title = title, Message = message,
-            Type = "Info", IsRead = isRead
+            UserId = userId,
+            Title = title,
+            Message = message,
+            Type = "Info",
+            IsRead = isRead
         };
         db.Notifications.Add(n);
         await db.SaveChangesAsync();
