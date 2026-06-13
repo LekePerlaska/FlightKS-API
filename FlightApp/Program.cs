@@ -185,7 +185,17 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IKeycloakService, KeycloakService>();
-builder.Services.AddSignalR();
+var signalrRedis = builder.Configuration.GetValue<string>("SignalR:RedisConnectionString");
+var signalrBuilder = builder.Services.AddSignalR();
+if (!string.IsNullOrWhiteSpace(signalrRedis))
+{
+    Log.Information("SignalR: Redis backplane at {ConnectionString}", signalrRedis);
+    signalrBuilder.AddStackExchangeRedis(signalrRedis);
+}
+else
+{
+    Log.Information("SignalR: In-memory (single-instance). Set SignalR:RedisConnectionString for multi-instance.");
+}
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>

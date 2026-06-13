@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
+public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub, INotificationService notificationService)
     : IFlightManagerService
 {
     public async Task<IEnumerable<FlightManagerSeatDto>> GetSeatsAsync(Guid scheduleId, CancellationToken cancellationToken = default)
@@ -138,22 +138,11 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var now = DateTime.UtcNow;
         foreach (var userId in userIds)
-        {
-            db.Notifications.Add(new Notification
-            {
-                UserId = userId,
-                Title = title,
-                Message = message,
-                Type = "general",
-                IsRead = false,
-                RelatedEntityName = "FlightSchedule",
-                RelatedEntityId = scheduleId,
-                CreatedAt = now,
-            });
-        }
-        await db.SaveChangesAsync(cancellationToken);
+            await notificationService.CreateAsync(userId, title, message, "general",
+                relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
+                cancellationToken: cancellationToken);
+
         return userIds.Count;
     }
 }

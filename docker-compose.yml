@@ -45,10 +45,14 @@ services:
       # To enable: set RateLimiting__Store=Distributed here (or via env at deploy time).
       - RateLimiting__RedisConnectionString=redis:6379
 
+      - SignalR__RedisConnectionString=redis:6379
+
     depends_on:
       postgres:
         condition: service_healthy
       keycloak:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       loki:
         condition: service_started

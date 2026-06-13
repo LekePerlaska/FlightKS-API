@@ -190,6 +190,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(s => s.CreatedAt).HasDefaultValueSql("now()");
             e.Property(s => s.UpdatedAt).HasDefaultValueSql("now()");
             e.HasIndex(s => s.DepartureTime);
+            e.HasIndex(s => new { s.AircraftId, s.DepartureTime });
             e.HasOne(s => s.Flight)
                 .WithMany(f => f.FlightSchedules)
                 .HasForeignKey(s => s.FlightId)
