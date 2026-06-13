@@ -252,7 +252,8 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
     {
         var statusChanged = schedule.Status != oldStatus;
         var departureChanged = schedule.DepartureTime != oldDeparture;
-        var gateChanged = schedule.Gate != oldGate && schedule.Gate is not null;
+        // Fire on any gate value change, including clearing to null — passengers need to know.
+        var gateChanged = schedule.Gate != oldGate;
 
         if (!statusChanged && !departureChanged && !gateChanged) return;
 
@@ -270,54 +271,54 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
         var origin = schedule.Flight.OriginAirport.Code;
         var destination = schedule.Flight.DestinationAirport.Code;
 
-        foreach (var userId in userIds)
+        if (statusChanged && schedule.Status == FlightScheduleStatus.Cancelled)
         {
-            if (statusChanged && schedule.Status == FlightScheduleStatus.Cancelled)
-            {
-                await notificationService.CreateAsync(userId,
-                    "Flight Cancelled",
-                    $"Flight {flightNumber} ({origin} → {destination}) has been cancelled.",
-                    "flight_cancelled",
-                    relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
-                    sendEmail: true,
-                    emailSubject: $"Flight Cancelled – {flightNumber}",
-                    emailHtml: EmailTemplates.FlightCancelled(flightNumber, origin, destination),
-                    cancellationToken: cancellationToken);
-            }
-            else if (statusChanged && schedule.Status == FlightScheduleStatus.Delayed)
-            {
-                await notificationService.CreateAsync(userId,
-                    "Flight Delayed",
-                    $"Flight {flightNumber} ({origin} → {destination}) has been delayed. New departure: {schedule.DepartureTime:dd MMM HH:mm} UTC.",
-                    "flight_delayed",
-                    relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
-                    sendEmail: true,
-                    emailSubject: $"Flight Delayed – {flightNumber}",
-                    emailHtml: EmailTemplates.FlightDelayed(flightNumber, origin, destination, schedule.DepartureTime, schedule.DelayReason),
-                    cancellationToken: cancellationToken);
-            }
-            else if (departureChanged)
-            {
-                await notificationService.CreateAsync(userId,
-                    "Departure Time Changed",
-                    $"Flight {flightNumber} ({origin} → {destination}) now departs at {schedule.DepartureTime:dd MMM HH:mm} UTC.",
-                    "flight_time_changed",
-                    relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
-                    sendEmail: true,
-                    emailSubject: $"Departure Time Changed – {flightNumber}",
-                    emailHtml: EmailTemplates.FlightTimeChanged(flightNumber, origin, destination, schedule.DepartureTime),
-                    cancellationToken: cancellationToken);
-            }
+            await notificationService.CreateBulkAsync(userIds,
+                "Flight Cancelled",
+                $"Flight {flightNumber} ({origin} → {destination}) has been cancelled.",
+                "flight_cancelled",
+                relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
+                sendEmail: true,
+                emailSubject: $"Flight Cancelled – {flightNumber}",
+                emailHtml: EmailTemplates.FlightCancelled(flightNumber, origin, destination),
+                cancellationToken: cancellationToken);
+        }
+        else if (statusChanged && schedule.Status == FlightScheduleStatus.Delayed)
+        {
+            await notificationService.CreateBulkAsync(userIds,
+                "Flight Delayed",
+                $"Flight {flightNumber} ({origin} → {destination}) has been delayed. New departure: {schedule.DepartureTime:dd MMM HH:mm} UTC.",
+                "flight_delayed",
+                relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
+                sendEmail: true,
+                emailSubject: $"Flight Delayed – {flightNumber}",
+                emailHtml: EmailTemplates.FlightDelayed(flightNumber, origin, destination, schedule.DepartureTime, schedule.DelayReason),
+                cancellationToken: cancellationToken);
+        }
+        else if (departureChanged)
+        {
+            await notificationService.CreateBulkAsync(userIds,
+                "Departure Time Changed",
+                $"Flight {flightNumber} ({origin} → {destination}) now departs at {schedule.DepartureTime:dd MMM HH:mm} UTC.",
+                "flight_time_changed",
+                relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
+                sendEmail: true,
+                emailSubject: $"Departure Time Changed – {flightNumber}",
+                emailHtml: EmailTemplates.FlightTimeChanged(flightNumber, origin, destination, schedule.DepartureTime),
+                cancellationToken: cancellationToken);
+        }
 
-            if (gateChanged && schedule.Status != FlightScheduleStatus.Cancelled)
-            {
-                await notificationService.CreateAsync(userId,
-                    "Gate Change",
-                    $"Flight {flightNumber} now departs from gate {schedule.Gate}.",
-                    "flight_gate_changed",
-                    relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
-                    cancellationToken: cancellationToken);
-            }
+        if (gateChanged && schedule.Status != FlightScheduleStatus.Cancelled)
+        {
+            var gateMessage = schedule.Gate is not null
+                ? $"Flight {flightNumber} now departs from gate {schedule.Gate}."
+                : $"The gate assignment for flight {flightNumber} has been removed. Please check airport displays.";
+            await notificationService.CreateBulkAsync(userIds,
+                "Gate Change",
+                gateMessage,
+                "flight_gate_changed",
+                relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
+                cancellationToken: cancellationToken);
         }
     }
 
@@ -355,6 +356,9 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
         return true;
     }
 
+    // TODO: FlightManager-to-Airline scoping requires a schema addition (FlightManagerAirline join table).
+    // Until that exists, this returns all active schedules. Track in backlog before exposing to
+    // multi-tenant environments where managers from different airlines must be isolated.
     public async Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default) =>
         await db.FlightSchedules.AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
@@ -424,7 +428,9 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
 
     private async Task EnsureAircraftIsFreeAsync(Guid aircraftId, DateTime departure, DateTime arrival, Guid? excludeScheduleId, CancellationToken cancellationToken)
     {
-        var clash = await db.FlightSchedules.AsNoTracking()
+        // IgnoreQueryFilters so soft-deleted schedules are included — a deleted schedule
+        // still physically occupied the aircraft's time slot and must block re-scheduling.
+        var clash = await db.FlightSchedules.IgnoreQueryFilters().AsNoTracking()
             .AnyAsync(s =>
                 s.AircraftId == aircraftId &&
                 s.Id != excludeScheduleId &&

@@ -112,6 +112,9 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
             .FirstOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
         if (ticket is null) return null;
 
+        if (ticket.Booking.Status != BookingStatus.Confirmed)
+            throw new BusinessRuleException("Cannot check in a passenger whose booking has not been confirmed (payment required).");
+
         switch (ticket.TicketStatus)
         {
             case TicketStatus.CheckedIn:
@@ -158,13 +161,12 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        foreach (var userId in userIds)
-            await notificationService.CreateAsync(userId, title, message, "general",
-                relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
-                sendEmail: true,
-                emailSubject: title,
-                emailHtml: EmailTemplates.FlightUpdate(title, message),
-                cancellationToken: cancellationToken);
+        await notificationService.CreateBulkAsync(userIds, title, message, "general",
+            relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
+            sendEmail: true,
+            emailSubject: title,
+            emailHtml: EmailTemplates.FlightUpdate(title, message),
+            cancellationToken: cancellationToken);
 
         return userIds.Count;
     }

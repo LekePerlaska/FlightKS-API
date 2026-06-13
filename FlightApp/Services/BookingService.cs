@@ -92,7 +92,7 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
                     $"Your booking {booking.BookingReference} has been cancelled.",
                     "booking_cancelled",
                     $"Booking Cancelled – {booking.BookingReference}",
-                    EmailTemplates.BookingCancelled(booking.User.FullName, booking.BookingReference)),
+                    EmailTemplates.BookingCancelled(booking.User?.FullName ?? booking.UserId.ToString(), booking.BookingReference)),
                 BookingStatus.Confirmed => (
                     "Booking Confirmed",
                     $"Your booking {booking.BookingReference} has been confirmed.",
@@ -129,7 +129,7 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
         if (booking is null) return null;
 
         var seatsTotal = booking.Tickets.Sum(t => t.Price);
-        var baggageTotal = booking.BookingBaggage.Sum(bb => bb.BaggageOption.Price * bb.Quantity);
+        var baggageTotal = booking.BookingBaggage.Sum(bb => bb.BaggageOption is not null ? bb.BaggageOption.Price * bb.Quantity : 0m);
         var paidTotal = booking.Payments
             .Where(p => p.PaymentStatus == PaymentStatus.Completed)
             .Sum(p => p.Amount);
@@ -140,7 +140,6 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
     public async Task<bool> CancelAsync(Guid bookingId, Guid ownerUserId, CancellationToken cancellationToken = default)
     {
         var booking = await db.Bookings
-            .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.Id == bookingId && b.UserId == ownerUserId, cancellationToken);
         if (booking is null) return false;
 

@@ -9,6 +9,13 @@ public interface INotificationService
         string? relatedEntityName = null, Guid? relatedEntityId = null,
         bool sendEmail = false, string? emailSubject = null, string? emailHtml = null,
         CancellationToken cancellationToken = default);
+
+    Task CreateBulkAsync(
+        IReadOnlyList<Guid> userIds, string title, string message, string type,
+        string? relatedEntityName = null, Guid? relatedEntityId = null,
+        bool sendEmail = false, string? emailSubject = null, string? emailHtml = null,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<Notification> Items, int Total)> GetForUserAsync(
         Guid userId, bool? unreadOnly, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<Notification?> GetByIdAsync(Guid notificationId, Guid userId, CancellationToken cancellationToken = default);

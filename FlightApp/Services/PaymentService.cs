@@ -74,7 +74,7 @@ public class PaymentService(AppDbContext db, INotificationService notificationSe
             relatedEntityName: "Booking", relatedEntityId: booking.Id,
             sendEmail: true,
             emailSubject: $"Booking Confirmed – {booking.BookingReference}",
-            emailHtml: EmailTemplates.BookingConfirmed(booking.User.FullName, booking.BookingReference, booking.TotalAmount),
+            emailHtml: EmailTemplates.BookingConfirmed(booking.User?.FullName ?? booking.UserId.ToString(), booking.BookingReference, booking.TotalAmount),
             cancellationToken: cancellationToken);
 
         return payment;
@@ -133,7 +133,7 @@ public class PaymentService(AppDbContext db, INotificationService notificationSe
                 sendEmail: true,
                 emailSubject: $"Refund Processed – {payment.Booking.BookingReference}",
                 emailHtml: EmailTemplates.PaymentRefunded(
-                    payment.Booking.User.FullName, payment.Booking.BookingReference, amount, reason),
+                    payment.Booking.User?.FullName ?? payment.Booking.UserId.ToString(), payment.Booking.BookingReference, amount, reason),
                 cancellationToken: cancellationToken);
 
         return refund;
