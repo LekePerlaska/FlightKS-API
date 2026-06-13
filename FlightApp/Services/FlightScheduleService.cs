@@ -316,9 +316,6 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
                     $"Flight {flightNumber} now departs from gate {schedule.Gate}.",
                     "flight_gate_changed",
                     relatedEntityName: "FlightSchedule", relatedEntityId: schedule.Id,
-                    sendEmail: true,
-                    emailSubject: $"Gate Change – {flightNumber}",
-                    emailHtml: EmailTemplates.FlightGateChanged(flightNumber, origin, destination, schedule.Gate!),
                     cancellationToken: cancellationToken);
             }
         }

@@ -139,9 +139,6 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
             $"{passengerName} is checked in for flight {flightNumber} ({origin} → {destination}), departing {departure:dd MMM HH:mm} UTC.",
             "check_in_confirmed",
             relatedEntityName: "Ticket", relatedEntityId: ticket.Id,
-            sendEmail: true,
-            emailSubject: $"Check-In Confirmed – {flightNumber}",
-            emailHtml: EmailTemplates.CheckInConfirmed(passengerName, flightNumber, origin, destination, departure, seatNumber),
             cancellationToken: cancellationToken);
 
         return ticket;

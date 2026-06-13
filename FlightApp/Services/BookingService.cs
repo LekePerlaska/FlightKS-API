@@ -97,8 +97,8 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
                     "Booking Confirmed",
                     $"Your booking {booking.BookingReference} has been confirmed.",
                     "booking_confirmed",
-                    $"Booking Confirmed – {booking.BookingReference}",
-                    EmailTemplates.BookingConfirmed(booking.User.FullName, booking.BookingReference, booking.TotalAmount)),
+                    (string?)null,
+                    (string?)null),
                 _ => (
                     "Booking Updated",
                     $"Your booking {booking.BookingReference} status has been updated to {status}.",
@@ -154,9 +154,6 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
             $"Your booking {booking.BookingReference} has been cancelled.",
             "booking_cancelled",
             relatedEntityName: "Booking", relatedEntityId: booking.Id,
-            sendEmail: true,
-            emailSubject: $"Booking Cancelled – {booking.BookingReference}",
-            emailHtml: EmailTemplates.BookingCancelled(booking.User.FullName, booking.BookingReference),
             cancellationToken: cancellationToken);
 
         return true;

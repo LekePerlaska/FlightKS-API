@@ -58,9 +58,6 @@ public class TicketService(AppDbContext db, INotificationService notificationSer
                 $"Your ticket for flight {flightNumber} ({origin} → {destination}) has been cancelled.",
                 "ticket_cancelled",
                 relatedEntityName: "Ticket", relatedEntityId: ticket.Id,
-                sendEmail: true,
-                emailSubject: $"Ticket Cancelled – {flightNumber}",
-                emailHtml: EmailTemplates.TicketCancelled(flightNumber, origin, destination),
                 cancellationToken: cancellationToken);
         }
 
