@@ -73,12 +73,49 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
 
     public async Task<Booking?> UpdateStatusAsync(Guid bookingId, BookingStatus status, CancellationToken cancellationToken = default)
     {
-        var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
+        var booking = await db.Bookings
+            .Include(b => b.User)
+            .FirstOrDefaultAsync(b => b.Id == bookingId, cancellationToken);
         if (booking is null) return null;
 
+        var oldStatus = booking.Status;
         booking.Status = status;
         booking.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+
+        if (status != oldStatus)
+        {
+            var (title, message, type, emailSubject, emailHtml) = status switch
+            {
+                BookingStatus.Cancelled => (
+                    "Booking Cancelled",
+                    $"Your booking {booking.BookingReference} has been cancelled.",
+                    "booking_cancelled",
+                    $"Booking Cancelled – {booking.BookingReference}",
+                    EmailTemplates.BookingCancelled(booking.User.FullName, booking.BookingReference)),
+                BookingStatus.Confirmed => (
+                    "Booking Confirmed",
+                    $"Your booking {booking.BookingReference} has been confirmed.",
+                    "booking_confirmed",
+                    $"Booking Confirmed – {booking.BookingReference}",
+                    EmailTemplates.BookingConfirmed(booking.User.FullName, booking.BookingReference, booking.TotalAmount)),
+                _ => (
+                    "Booking Updated",
+                    $"Your booking {booking.BookingReference} status has been updated to {status}.",
+                    "booking_updated",
+                    (string?)null,
+                    (string?)null)
+            };
+
+            await notificationService.CreateAsync(booking.UserId,
+                title, message, type,
+                relatedEntityName: "Booking", relatedEntityId: booking.Id,
+                sendEmail: emailSubject is not null,
+                emailSubject: emailSubject,
+                emailHtml: emailHtml,
+                cancellationToken: cancellationToken);
+        }
+
         return booking;
     }
 

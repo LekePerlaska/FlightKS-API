@@ -104,6 +104,11 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
     public async Task<Ticket?> CheckInTicketAsync(Guid ticketId, CancellationToken cancellationToken = default)
     {
         var ticket = await db.Tickets
+            .Include(t => t.Booking)
+            .Include(t => t.Passenger)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(t => t.FlightSchedule).ThenInclude(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Include(t => t.FlightSeat).ThenInclude(fs => fs!.Seat)
             .FirstOrDefaultAsync(t => t.Id == ticketId, cancellationToken);
         if (ticket is null) return null;
 
@@ -121,6 +126,24 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
         ticket.TicketStatus = TicketStatus.CheckedIn;
         ticket.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+
+        var passengerName = $"{ticket.Passenger.FirstName} {ticket.Passenger.LastName}";
+        var flightNumber = ticket.FlightSchedule.Flight.FlightNumber;
+        var origin = ticket.FlightSchedule.Flight.OriginAirport.Code;
+        var destination = ticket.FlightSchedule.Flight.DestinationAirport.Code;
+        var departure = ticket.FlightSchedule.DepartureTime;
+        var seatNumber = ticket.FlightSeat?.Seat?.SeatNumber;
+
+        await notificationService.CreateAsync(ticket.Booking.UserId,
+            "Check-In Confirmed",
+            $"{passengerName} is checked in for flight {flightNumber} ({origin} → {destination}), departing {departure:dd MMM HH:mm} UTC.",
+            "check_in_confirmed",
+            relatedEntityName: "Ticket", relatedEntityId: ticket.Id,
+            sendEmail: true,
+            emailSubject: $"Check-In Confirmed – {flightNumber}",
+            emailHtml: EmailTemplates.CheckInConfirmed(passengerName, flightNumber, origin, destination, departure, seatNumber),
+            cancellationToken: cancellationToken);
+
         return ticket;
     }
 
