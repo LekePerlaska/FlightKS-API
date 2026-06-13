@@ -356,15 +356,35 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
         return true;
     }
 
-    // TODO: FlightManager-to-Airline scoping requires a schema addition (FlightManagerAirline join table).
-    // Until that exists, this returns all active schedules. Track in backlog before exposing to
-    // multi-tenant environments where managers from different airlines must be isolated.
-    public async Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default) =>
-        await db.FlightSchedules.AsNoTracking()
+    public async Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default)
+    {
+        var airlineId = await db.Users.AsNoTracking()
+            .Where(u => u.Id == flightManagerUserId)
+            .Select(u => u.AirlineId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (airlineId is null) return [];
+
+        return await db.FlightSchedules.AsNoTracking()
             .Include(s => s.Flight).ThenInclude(f => f.OriginAirport)
             .Include(s => s.Flight).ThenInclude(f => f.DestinationAirport)
+            .Where(s => s.Flight.AirlineId == airlineId)
             .OrderBy(s => s.DepartureTime)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> BelongsToFlightManagerAsync(Guid scheduleId, Guid flightManagerUserId, CancellationToken cancellationToken = default)
+    {
+        var airlineId = await db.Users.AsNoTracking()
+            .Where(u => u.Id == flightManagerUserId)
+            .Select(u => u.AirlineId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (airlineId is null) return false;
+
+        return await db.FlightSchedules.AsNoTracking()
+            .AnyAsync(s => s.Id == scheduleId && s.Flight.AirlineId == airlineId, cancellationToken);
+    }
 
     public async Task<IEnumerable<(Passenger Passenger, Ticket Ticket)>> GetManifestAsync(Guid scheduleId, CancellationToken cancellationToken = default)
     {

@@ -20,7 +20,8 @@ public record AdminUserDetailDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    Guid? AirlineId = null);
 
 public record AdminUserCreateDto(
     string FullName,
@@ -37,6 +38,8 @@ public record AdminUserUpdateDto(
     DateOnly? DateOfBirth,
     string? PassportNumber,
     string? Nationality);
+
+public record SetUserAirlineDto(Guid? AirlineId);
 
 public record AssignRolesDto(IReadOnlyList<string> Roles);
 
