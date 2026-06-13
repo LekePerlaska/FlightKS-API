@@ -47,6 +47,15 @@ services:
 
       - SignalR__RedisConnectionString=redis:6379
 
+      # SMTP email delivery. Leave Email__Host empty to disable (NullEmailSender).
+      - Email__Host=${EMAIL_HOST:-}
+      - Email__Port=${EMAIL_PORT:-587}
+      - Email__UseSsl=${EMAIL_USE_SSL:-true}
+      - Email__Username=${EMAIL_USERNAME:-}
+      - Email__Password=${EMAIL_PASSWORD:-}
+      - Email__FromAddress=${EMAIL_FROM_ADDRESS:-}
+      - Email__FromName=${EMAIL_FROM_NAME:-FlightKS}
+
     depends_on:
       postgres:
         condition: service_healthy

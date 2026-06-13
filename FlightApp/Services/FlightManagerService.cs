@@ -141,6 +141,9 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
         foreach (var userId in userIds)
             await notificationService.CreateAsync(userId, title, message, "general",
                 relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
+                sendEmail: true,
+                emailSubject: title,
+                emailHtml: EmailTemplates.FlightUpdate(title, message),
                 cancellationToken: cancellationToken);
 
         return userIds.Count;

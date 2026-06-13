@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class PaymentService(AppDbContext db) : IPaymentService
+public class PaymentService(AppDbContext db, INotificationService notificationService) : IPaymentService
 {
     public async Task<Payment> CreateAsync(
         Guid bookingId,
@@ -18,6 +18,7 @@ public class PaymentService(AppDbContext db) : IPaymentService
         CancellationToken cancellationToken = default)
     {
         var booking = await db.Bookings
+            .Include(b => b.User)
             .Include(b => b.Tickets).ThenInclude(t => t.FlightSeat)
             .Include(b => b.BookingBaggage).ThenInclude(bb => bb.BaggageOption)
             .Include(b => b.Payments)
@@ -64,6 +65,18 @@ public class PaymentService(AppDbContext db) : IPaymentService
         booking.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
+
+        await notificationService.CreateAsync(
+            booking.UserId,
+            "Booking Confirmed",
+            $"Your booking {booking.BookingReference} has been confirmed. Total paid: ${booking.TotalAmount:F2}.",
+            "booking_confirmed",
+            relatedEntityName: "Booking", relatedEntityId: booking.Id,
+            sendEmail: true,
+            emailSubject: $"Booking Confirmed – {booking.BookingReference}",
+            emailHtml: EmailTemplates.BookingConfirmed(booking.User.FullName, booking.BookingReference, booking.TotalAmount),
+            cancellationToken: cancellationToken);
+
         return payment;
     }
 
@@ -80,7 +93,7 @@ public class PaymentService(AppDbContext db) : IPaymentService
     public async Task<PaymentRefund> CreateRefundAsync(Guid paymentId, decimal amount, string reason, CancellationToken cancellationToken = default)
     {
         var payment = await db.Payments
-            .Include(p => p.Booking)
+            .Include(p => p.Booking).ThenInclude(b => b.User)
             .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken)
             ?? throw new NotFoundException($"Payment '{paymentId}' not found.");
 
@@ -109,6 +122,20 @@ public class PaymentService(AppDbContext db) : IPaymentService
         }
 
         await db.SaveChangesAsync(cancellationToken);
+
+        if (payment.Booking is not null)
+            await notificationService.CreateAsync(
+                payment.Booking.UserId,
+                "Refund Processed",
+                $"A refund of ${amount:F2} for booking {payment.Booking.BookingReference} has been processed.",
+                "payment_refunded",
+                relatedEntityName: "Payment", relatedEntityId: payment.Id,
+                sendEmail: true,
+                emailSubject: $"Refund Processed – {payment.Booking.BookingReference}",
+                emailHtml: EmailTemplates.PaymentRefunded(
+                    payment.Booking.User.FullName, payment.Booking.BookingReference, amount, reason),
+                cancellationToken: cancellationToken);
+
         return refund;
     }
 }

@@ -197,6 +197,19 @@ else
     Log.Information("SignalR: In-memory (single-instance). Set SignalR:RedisConnectionString for multi-instance.");
 }
 
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+var emailHost = builder.Configuration.GetValue<string>($"{EmailOptions.SectionName}:Host");
+if (!string.IsNullOrWhiteSpace(emailHost))
+{
+    Log.Information("Email: SMTP at {Host}", emailHost);
+    builder.Services.AddSingleton<IEmailSender, EmailSender>();
+}
+else
+{
+    Log.Information("Email: no SMTP host configured — email delivery disabled.");
+    builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
+}
+
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {

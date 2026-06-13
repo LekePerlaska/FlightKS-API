@@ -8,11 +8,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class NotificationService(AppDbContext db, IHubContext<NotificationHub> hub) : INotificationService
+public class NotificationService(
+    AppDbContext db,
+    IHubContext<NotificationHub> hub,
+    IEmailSender emailSender,
+    ILogger<NotificationService> logger) : INotificationService
 {
     public async Task<Notification> CreateAsync(
         Guid userId, string title, string message, string type,
         string? relatedEntityName = null, Guid? relatedEntityId = null,
+        bool sendEmail = false, string? emailSubject = null, string? emailHtml = null,
         CancellationToken cancellationToken = default)
     {
         var notification = new Notification
@@ -36,6 +41,20 @@ public class NotificationService(AppDbContext db, IHubContext<NotificationHub> h
             .SendAsync(NotificationHub.NotificationReceived,
                 new { notification = notification.ToDto(), unreadCount },
                 cancellationToken);
+
+        if (sendEmail && !string.IsNullOrEmpty(emailSubject) && !string.IsNullOrEmpty(emailHtml))
+        {
+            var user = await db.Users
+                .Where(u => u.Id == userId)
+                .Select(u => new { u.Email, u.FullName })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (user is not null && !string.IsNullOrEmpty(user.Email))
+                _ = emailSender.SendAsync(user.Email, user.FullName, emailSubject, emailHtml, CancellationToken.None)
+                    .ContinueWith(
+                        t => logger.LogError(t.Exception, "Failed to send email '{Subject}' to {Email}", emailSubject, user.Email),
+                        TaskContinuationOptions.OnlyOnFaulted);
+        }
 
         return notification;
     }

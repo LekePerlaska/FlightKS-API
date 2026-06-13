@@ -7,6 +7,7 @@ public interface INotificationService
     Task<Notification> CreateAsync(
         Guid userId, string title, string message, string type,
         string? relatedEntityName = null, Guid? relatedEntityId = null,
+        bool sendEmail = false, string? emailSubject = null, string? emailHtml = null,
         CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<Notification> Items, int Total)> GetForUserAsync(
         Guid userId, bool? unreadOnly, int page, int pageSize, CancellationToken cancellationToken = default);
