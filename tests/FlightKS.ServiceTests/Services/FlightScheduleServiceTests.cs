@@ -1,14 +1,26 @@
 using FlightKS.Enums;
 using FlightKS.Exceptions;
+using FlightKS.Models.Entities;
 using FlightKS.Services;
+using FlightKS.Services.Interfaces;
 using FlightKS.ServiceTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 
 namespace FlightKS.ServiceTests.Services;
 
 public class FlightScheduleServiceTests(PostgresFixture fixture) : ServiceTestBase(fixture)
 {
-    private static FlightScheduleService MakeSut(FlightKS.Data.AppDbContext db) => new(db);
+    private static INotificationService MakeNotifications()
+    {
+        var n = Substitute.For<INotificationService>();
+        n.CreateAsync(default, default!, default!, default!)
+         .ReturnsForAnyArgs(Task.FromResult(new Notification { Title = "", Message = "", Type = "" }));
+        return n;
+    }
+
+    private static FlightScheduleService MakeSut(FlightKS.Data.AppDbContext db, INotificationService? notifications = null) =>
+        new(db, notifications ?? MakeNotifications());
 
     private async Task<(Guid AirlineId, Guid AircraftId, Guid FlightId)> SeedBaseAsync(
         string airlineCode = "TS", string originCode = "TS1", string destCode = "TS2")
@@ -133,6 +145,78 @@ public class FlightScheduleServiceTests(PostgresFixture fixture) : ServiceTestBa
             .FirstOrDefaultAsync(i => i.Id == itinId);
         itin!.IsActive.Should().BeFalse();
         itin.DeletedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChangedToDelayed_NotifiesActivePassengers()
+    {
+        var (_, aircraftId, flightId) = await SeedBaseAsync("ND", "N1D", "N2D");
+
+        Guid scheduleId;
+        await using (var db = CreateContext())
+        {
+            var s = await MakeSut(db).CreateAsync(flightId, aircraftId,
+                new DateTime(2027, 3, 1, 9, 0, 0, DateTimeKind.Utc),
+                new DateTime(2027, 3, 1, 12, 0, 0, DateTimeKind.Utc), 200m, null);
+            scheduleId = s.Id;
+        }
+
+        // Plant a ticket holder
+        Guid userId;
+        await using (var db = CreateContext())
+        {
+            var seed = new SeedData(db);
+            var user = await seed.UserAsync("delay@test.com");
+            userId = user.Id;
+            var itinResult = await db.Itineraries.FirstAsync(i => i.Segments.Any(seg => seg.FlightScheduleId == scheduleId));
+            var booking = await seed.BookingAsync(user.Id, itinResult.Id);
+            var passenger = await seed.PassengerAsync(booking.Id);
+            var seat = await seed.SeatAsync(aircraftId);
+            var fs = await seed.FlightSeatAsync(seat.Id, scheduleId, FlightSeatStatus.Booked);
+            await seed.TicketAsync(booking.Id, passenger.Id, scheduleId, fs.Id);
+        }
+
+        var notifications = Substitute.For<INotificationService>();
+        notifications.CreateAsync(default, default!, default!, default!)
+            .ReturnsForAnyArgs(Task.FromResult(new Notification { Title = "", Message = "", Type = "" }));
+
+        await using var db2 = CreateContext();
+        await new FlightScheduleService(db2, notifications)
+            .UpdateAsync(scheduleId, FlightScheduleStatus.Delayed, null, "Weather", null, null, null, null);
+
+        await notifications.Received(1).CreateAsync(
+            Arg.Is(userId),
+            Arg.Is<string>(t => t == "Flight Delayed"),
+            Arg.Any<string>(),
+            Arg.Is<string>(t => t == "flight_delayed"),
+            Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoPassengers_DoesNotCallNotifications()
+    {
+        var (_, aircraftId, flightId) = await SeedBaseAsync("NP", "N3P", "N4P");
+
+        Guid scheduleId;
+        await using (var db = CreateContext())
+        {
+            var s = await MakeSut(db).CreateAsync(flightId, aircraftId,
+                new DateTime(2027, 4, 1, 9, 0, 0, DateTimeKind.Utc),
+                new DateTime(2027, 4, 1, 12, 0, 0, DateTimeKind.Utc), 200m, null);
+            scheduleId = s.Id;
+        }
+
+        var notifications = Substitute.For<INotificationService>();
+
+        await using var db2 = CreateContext();
+        await new FlightScheduleService(db2, notifications)
+            .UpdateAsync(scheduleId, FlightScheduleStatus.Cancelled, null, null, null, null, null, null);
+
+        await notifications.DidNotReceive().CreateAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
