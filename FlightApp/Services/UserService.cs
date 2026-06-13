@@ -158,4 +158,23 @@ public class UserService(AppDbContext db) : IUserService
         await db.SaveChangesAsync(cancellationToken);
         return user;
     }
+
+    public async Task<User?> SetAirlineAsync(Guid userId, Guid? airlineId, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null) return null;
+
+        if (airlineId is not null)
+        {
+            var airlineExists = await db.Airlines.AsNoTracking()
+                .AnyAsync(a => a.Id == airlineId, cancellationToken);
+            if (!airlineExists)
+                throw new FlightKS.Exceptions.NotFoundException($"Airline '{airlineId}' not found.");
+        }
+
+        user.AirlineId = airlineId;
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return user;
+    }
 }

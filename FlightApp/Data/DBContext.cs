@@ -94,6 +94,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(u => u.CreatedAt).HasDefaultValueSql("now()");
             e.Property(u => u.UpdatedAt).HasDefaultValueSql("now()");
             e.HasQueryFilter(u => u.DeletedAt == null);
+            e.HasIndex(u => u.AirlineId);
+            e.HasOne(u => u.Airline)
+                .WithMany()
+                .HasForeignKey(u => u.AirlineId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
         });
 
     private static void ConfigureAirline(ModelBuilder mb) =>

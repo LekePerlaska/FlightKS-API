@@ -41,4 +41,5 @@ public interface IUserService
         CancellationToken cancellationToken = default);
 
     Task<User?> SetActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default);
+    Task<User?> SetAirlineAsync(Guid userId, Guid? airlineId, CancellationToken cancellationToken = default);
 }

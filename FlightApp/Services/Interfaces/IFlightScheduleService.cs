@@ -18,5 +18,6 @@ public interface IFlightScheduleService
     Task<bool> DeleteAsync(Guid scheduleId, CancellationToken cancellationToken = default);
 
     Task<IEnumerable<FlightSchedule>> GetForFlightManagerAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default);
+    Task<bool> BelongsToFlightManagerAsync(Guid scheduleId, Guid flightManagerUserId, CancellationToken cancellationToken = default);
     Task<IEnumerable<(Passenger Passenger, Ticket Ticket)>> GetManifestAsync(Guid scheduleId, CancellationToken cancellationToken = default);
 }
