@@ -41,7 +41,7 @@ public static class AdminItinerariesEndpoints
         int pageSize = 20)
     {
         var (items, total) = await itineraries.GetAllForAdminAsync(isActive, page, pageSize, cancellationToken);
-        return TypedResults.Ok(new { items = items.Select(i => i.ToSearchResult()), total, page, pageSize });
+        return TypedResults.Ok(new PagedResult<ItinerarySearchResultDto>(items.Select(i => i.ToSearchResult()).ToList(), total, page, pageSize));
     }
 
     private static async Task<IResult> GetById(Guid id, IItineraryService itineraries, CancellationToken cancellationToken)

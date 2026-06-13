@@ -17,6 +17,7 @@ using FlightKS.Services;
 using FlightKS.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using StackExchange.Redis;
@@ -121,11 +122,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             // doesn't resolve inside Docker — rewrite to the internal service name.
             options.BackchannelHttpHandler = new KeycloakBackchannelHandler(new HttpClientHandler());
         }
+        var audience = builder.Configuration["Keycloak:Audience"];
         options.TokenValidationParameters = new()
         {
-            ValidateAudience = false,
-            // Token iss is localhost:8080 but authority inside Docker is keycloak:8080
-            ValidateIssuer = false,
+            ValidateAudience = !string.IsNullOrEmpty(audience),
+            ValidAudiences = string.IsNullOrEmpty(audience) ? [] : [audience],
+            ValidateIssuer = true,
             NameClaimType = "preferred_username",
         };
         options.Events = new JwtBearerEvents
@@ -210,6 +212,10 @@ else
     builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
 }
 
+var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/dp-keys";
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
+
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
 {
@@ -281,16 +287,24 @@ builder.Services.AddScoped<IFlightManagerService, FlightManagerService>();
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Scoped);
 
-builder.Services.AddHealthChecks();
+var hcBuilder = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("postgres");
+
+if (rateLimitOptions.Store == RateLimitStore.Distributed)
+    hcBuilder.Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+        "redis",
+        sp => new FlightKS.HealthChecks.RedisHealthCheck(sp.GetRequiredService<IConnectionMultiplexer>()),
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+        ["redis"]));
 
 var app = builder.Build();
 
 // ForwardedHeaders — must be first so the real client IP is visible to both
-// UseSerilogRequestLogging and the rate limiter (Phase 5).
-// Dev: trust all sources because Docker's bridge network uses non-loopback IPs
-//      and there is no reverse proxy in the compose stack.
-// Prod: populate ForwardedHeaders:KnownProxies in config with the actual proxy
-//       CIDR/IPs before deploying behind a reverse proxy, to prevent IP spoofing.
+// UseSerilogRequestLogging and the rate limiter.
+// Dev: trust all sources (no reverse proxy in the compose stack).
+// Prod: set ForwardedHeaders:KnownProxies (individual IPs) and/or
+//       ForwardedHeaders:KnownNetworks (CIDR ranges, e.g. 172.16.0.0/12 for
+//       the Docker bridge network when Caddy runs as a sidecar container).
 var fwdOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
@@ -309,6 +323,20 @@ else
     {
         if (System.Net.IPAddress.TryParse(proxy, out var ip))
             fwdOptions.KnownProxies.Add(ip);
+    }
+
+    var knownNetworks = builder.Configuration
+        .GetSection("ForwardedHeaders:KnownNetworks")
+        .Get<string[]>() ?? [];
+    foreach (var network in knownNetworks)
+    {
+        var parts = network.Split('/');
+        if (parts.Length == 2 &&
+            System.Net.IPAddress.TryParse(parts[0], out var prefix) &&
+            int.TryParse(parts[1], out var prefixLength))
+        {
+            fwdOptions.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+        }
     }
 }
 app.UseForwardedHeaders(fwdOptions);
@@ -404,6 +432,25 @@ app.MapHub<SeatHub>("/hubs/seats").DisableRateLimiting();
 app.MapHub<NotificationHub>("/hubs/notifications").DisableRateLimiting();
 app.MapHub<AdminDashboardHub>("/hubs/admin-dashboard").DisableRateLimiting();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    ResponseWriter = async (ctx, report) =>
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsJsonAsync(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+            }),
+        });
+    },
+});
 
 app.Run();
+
+// Exposes Program to WebApplicationFactory<Program> in integration tests.
+public partial class Program { }

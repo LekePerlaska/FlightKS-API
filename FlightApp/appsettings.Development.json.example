@@ -1,0 +1,49 @@
+{
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft.AspNetCore": "Warning",
+        "Microsoft.EntityFrameworkCore": "Warning"
+      }
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5433;Database=flightks;Username=<POSTGRES_USER>;Password=<POSTGRES_PASSWORD>"
+  },
+  "Loki": {
+    "Uri": "http://localhost:3100"
+  },
+  "Keycloak": {
+    "Authority": "http://localhost:8080/realms/flightks",
+    "RequireHttpsMetadata": false,
+    "AdminApiBaseUrl": "http://localhost:8080/admin/realms/flightks",
+    "AdminClientId": "<KEYCLOAK_ADMIN_CLIENT_ID>",
+    "AdminClientSecret": "<KEYCLOAK_ADMIN_CLIENT_SECRET>",
+    "FrontendClientId": "<KEYCLOAK_FRONTEND_CLIENT_ID>",
+    "Audience": "flightks-api"
+  },
+  "Cors": {
+    "AllowedOrigins": [ "http://localhost:3000" ]
+  },
+  "RateLimiting": {
+    "Store": "InMemory",
+    "RedisConnectionString": "localhost:6379",
+    "PublicSearch": {
+      "TokenLimit": 40,
+      "TokensPerPeriod": 20,
+      "ReplenishmentPeriod": "00:00:10",
+      "QueueLimit": 0
+    },
+    "SensitiveWrites": {
+      "PermitLimit": 30,
+      "Window": "00:01:00",
+      "SegmentsPerWindow": 6
+    },
+    "Global": {
+      "PermitLimit": 100,
+      "Window": "00:01:00",
+      "SegmentsPerWindow": 6
+    }
+  }
+}

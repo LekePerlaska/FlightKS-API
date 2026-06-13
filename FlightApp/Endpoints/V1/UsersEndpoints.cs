@@ -135,9 +135,14 @@ public static class UsersEndpoints
 
     private static async Task<IResult> GetById(
         Guid id,
+        ICurrentUserAccessor accessor,
         IUserService users,
         CancellationToken cancellationToken)
     {
+        var callerId = await accessor.GetUserIdAsync(cancellationToken);
+        if (callerId != id)
+            throw new ForbiddenException("You can only view your own profile.");
+
         var user = await users.GetByIdAsync(id, cancellationToken);
         return user is null ? TypedResults.NotFound() : TypedResults.Ok(user.ToResponse());
     }

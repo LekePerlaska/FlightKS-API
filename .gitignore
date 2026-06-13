@@ -63,5 +63,6 @@ secrets.json
 appsettings.Secrets.json
 
 # Local appsettings overrides
+appsettings.Development.json
 appsettings.Local.json
 appsettings.Development.local.json

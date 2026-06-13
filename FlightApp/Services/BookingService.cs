@@ -198,8 +198,8 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
             .Include(b => b.Passengers)
             .Include(b => b.Tickets)
             .Include(b => b.Payments)
-            .Include(b => b.Itinerary).ThenInclude(i => i.OriginAirport)
-            .Include(b => b.Itinerary).ThenInclude(i => i.DestinationAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i!.OriginAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i!.DestinationAirport)
             .AsQueryable();
         return asNoTracking ? q.AsNoTracking() : q;
     }
@@ -225,8 +225,8 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
             .Include(b => b.Passengers)
             .Include(b => b.Tickets)
             .Include(b => b.Payments)
-            .Include(b => b.Itinerary).ThenInclude(i => i.OriginAirport)
-            .Include(b => b.Itinerary).ThenInclude(i => i.DestinationAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i!.OriginAirport)
+            .Include(b => b.Itinerary).ThenInclude(i => i!.DestinationAirport)
             .AsQueryable();
         return asNoTracking ? q.AsNoTracking() : q;
     }

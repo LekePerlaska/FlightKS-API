@@ -2,6 +2,7 @@ using FlightKS.Auth;
 using FlightKS.Endpoints;
 using FlightKS.Mappers;
 using FlightKS.Middleware;
+using FlightKS.Models.Dtos;
 using FlightKS.Models.Dtos.Notifications;
 using FlightKS.Services.Interfaces;
 
@@ -33,7 +34,7 @@ public static class NotificationsEndpoints
         int pageSize = 50)
     {
         var (items, total) = await notifications.GetForUserAsync(httpContext.CurrentUserId(), unreadOnly, page, pageSize, cancellationToken);
-        return TypedResults.Ok(new { items = items.Select(n => n.ToDto()), total, page, pageSize });
+        return TypedResults.Ok(new PagedResult<NotificationDto>(items.Select(n => n.ToDto()).ToList(), total, page, pageSize));
     }
 
     private static async Task<IResult> GetById(Guid notificationId, HttpContext httpContext, INotificationService notifications, CancellationToken cancellationToken)
