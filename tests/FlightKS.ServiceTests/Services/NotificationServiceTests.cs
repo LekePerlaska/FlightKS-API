@@ -1,12 +1,28 @@
+using FlightKS.Hubs;
 using FlightKS.Services;
+using FlightKS.Services.Interfaces;
 using FlightKS.ServiceTests.Fixtures;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using NSubstitute;
 
 namespace FlightKS.ServiceTests.Services;
 
 public class NotificationServiceTests(PostgresFixture fixture) : ServiceTestBase(fixture)
 {
-    private static NotificationService MakeSut(FlightKS.Data.AppDbContext db) => new(db);
+    private static NotificationService MakeSut(FlightKS.Data.AppDbContext db)
+    {
+        var clients = Substitute.For<IHubClients>();
+        clients.Group(Arg.Any<string>()).Returns(Substitute.For<IClientProxy>());
+        var hub = Substitute.For<IHubContext<NotificationHub>>();
+        hub.Clients.Returns(clients);
+        var emailSender = Substitute.For<IEmailSender>();
+        emailSender.SendAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+                              Arg.Any<string>(), Arg.Any<CancellationToken>())
+                   .Returns(Task.CompletedTask);
+        return new NotificationService(db, hub, emailSender, Substitute.For<ILogger<NotificationService>>());
+    }
 
     [Fact]
     public async Task GetForUserAsync_ReturnsOnlyOwnedNotifications()
@@ -57,6 +73,24 @@ public class NotificationServiceTests(PostgresFixture fixture) : ServiceTestBase
 
         var found = await db.Notifications.FindAsync(notif.Id);
         found.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateAsync_PersistsNotificationAndReturnsIt()
+    {
+        await using var setupDb = CreateContext();
+        var user = await new SeedData(setupDb).UserAsync("create@test.com");
+
+        await using var db = CreateContext();
+        var result = await MakeSut(db).CreateAsync(user.Id, "Title", "Msg", "info");
+
+        result.Should().NotBeNull();
+        result.Title.Should().Be("Title");
+        result.UserId.Should().Be(user.Id);
+        result.IsRead.Should().BeFalse();
+
+        var persisted = await db.Notifications.FindAsync(result.Id);
+        persisted.Should().NotBeNull();
     }
 
     [Fact]

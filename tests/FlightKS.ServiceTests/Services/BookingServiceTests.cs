@@ -1,13 +1,22 @@
 using FlightKS.Enums;
 using FlightKS.Exceptions;
+using FlightKS.Models.Entities;
 using FlightKS.Services;
+using FlightKS.Services.Interfaces;
 using FlightKS.ServiceTests.Fixtures;
+using NSubstitute;
 
 namespace FlightKS.ServiceTests.Services;
 
 public class BookingServiceTests(PostgresFixture fixture) : ServiceTestBase(fixture)
 {
-    private static BookingService MakeSut(FlightKS.Data.AppDbContext db) => new(db);
+    private static BookingService MakeSut(FlightKS.Data.AppDbContext db)
+    {
+        var notifications = Substitute.For<INotificationService>();
+        notifications.CreateAsync(default, default!, default!, default!)
+            .ReturnsForAnyArgs(Task.FromResult(new Notification { Title = "", Message = "", Type = "" }));
+        return new BookingService(db, notifications);
+    }
 
     // ── shared seed helper ─────────────────────────────────────────────────
 
