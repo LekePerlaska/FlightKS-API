@@ -43,6 +43,10 @@ public class TicketService(AppDbContext db, INotificationService notificationSer
         if (ticket is null) return null;
 
         var oldStatus = ticket.TicketStatus;
+
+        if (oldStatus is TicketStatus.Cancelled or TicketStatus.Refunded)
+            throw new FlightKS.Exceptions.BusinessRuleException("Cannot change the status of a cancelled or refunded ticket.");
+
         ticket.TicketStatus = status;
         ticket.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
