@@ -161,13 +161,12 @@ public class FlightManagerService(AppDbContext db, IHubContext<SeatHub> seatHub,
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        foreach (var userId in userIds)
-            await notificationService.CreateAsync(userId, title, message, "general",
-                relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
-                sendEmail: true,
-                emailSubject: title,
-                emailHtml: EmailTemplates.FlightUpdate(title, message),
-                cancellationToken: cancellationToken);
+        await notificationService.CreateBulkAsync(userIds, title, message, "general",
+            relatedEntityName: "FlightSchedule", relatedEntityId: scheduleId,
+            sendEmail: true,
+            emailSubject: title,
+            emailHtml: EmailTemplates.FlightUpdate(title, message),
+            cancellationToken: cancellationToken);
 
         return userIds.Count;
     }

@@ -23,7 +23,7 @@ public static class FlightManagerSchedulesEndpoints
         group.MapGet("/{scheduleId:guid}/passengers", Passengers).WithName("FlightManagerSchedulePassengers");
         group.MapGet("/{scheduleId:guid}/flight-seats", Seats).WithName("FlightManagerScheduleSeats");
         group.MapPatch("/{scheduleId:guid}/flight-seats/{seatId:guid}", SetSeatStatus).WithName("FlightManagerSetSeatStatus").WithValidation<FlightManagerSeatStatusUpdateDto>();
-        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers").WithValidation<NotifyPassengersDto>();
+        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers").WithValidation<NotifyPassengersDto>().RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
         group.MapGet("/{scheduleId:guid}/manifest/export", ExportManifest).WithName("FlightManagerExportManifest");
 
         return app;
