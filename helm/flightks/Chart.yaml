@@ -1,0 +1,23 @@
+apiVersion: v2
+name: flightks
+description: >-
+  FlightKS flight-booking platform — Helm chart for the full stack:
+  Next.js frontend, ASP.NET Core API, PostgreSQL, Redis and Keycloak,
+  exposed through an NGINX Ingress. Mirrors the docker-compose topology, but the
+  compose nginx edge is replaced by the NGINX Ingress Controller.
+type: application
+
+# Chart version — bump on chart changes.
+version: 0.1.0
+
+# Default application version (the images this chart was authored against).
+# Override per-component via values (backend.image.tag / frontend.image.tag).
+appVersion: "1.0.0"
+
+keywords:
+  - flightks
+  - aspnetcore
+  - nextjs
+  - keycloak
+maintainers:
+  - name: FlightKS

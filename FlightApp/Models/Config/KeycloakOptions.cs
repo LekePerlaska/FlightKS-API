@@ -20,6 +20,15 @@ public class KeycloakOptions
     /// <summary>Audience value embedded in JWTs by the Keycloak audience mapper (e.g. "flightks-api").</summary>
     public string Audience { get; init; } = string.Empty;
 
-    public string TokenUrl => $"{Authority}/protocol/openid-connect/token";
-    public string LogoutUrl => $"{Authority}/protocol/openid-connect/logout";
+    /// <summary>
+    /// Internal Keycloak base URL for backchannel calls (API → Keycloak token/logout endpoints).
+    /// In Docker this is http://keycloak:8080/realms/{realm}; in local dev it equals Authority.
+    /// When empty, falls back to Authority.
+    /// </summary>
+    public string InternalAuthority { get; init; } = string.Empty;
+
+    private string BackchannelBase => string.IsNullOrEmpty(InternalAuthority) ? Authority : InternalAuthority;
+
+    public string TokenUrl => $"{BackchannelBase}/protocol/openid-connect/token";
+    public string LogoutUrl => $"{BackchannelBase}/protocol/openid-connect/logout";
 }

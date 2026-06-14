@@ -1,0 +1,32 @@
+FlightKS ({{ .Chart.AppVersion }}) — release "{{ .Release.Name }}" in namespace "{{ include "flightks.namespace" . }}".
+
+Public URL:  {{ include "flightks.publicOrigin" . }}
+{{- if not .Values.ingress.tls.enabled }}
+
+  ⚠  Serving over HTTP. Login (keycloak-js PKCE) needs a secure context, so set up
+     TLS before expecting sign-in to work on a non-localhost host:
+       --set publicScheme=https --set ingress.tls.enabled=true \
+       --set ingress.annotations."cert-manager\.io/issuer"=<issuer>
+{{- end }}
+
+1) Watch rollout:
+     kubectl get pods -n {{ include "flightks.namespace" . }} -w
+
+2) Quick checks (replace HOST with {{ .Values.ingress.host }}):
+     curl -s -o /dev/null -w "%{http_code}\n" {{ include "flightks.publicOrigin" . }}/                 # frontend → 200
+     curl -s -o /dev/null -w "%{http_code}\n" {{ include "flightks.publicOrigin" . }}/api/v1/auth/me    # backend  → 401
+     curl -s -o /dev/null -w "%{http_code}\n" {{ include "flightks.publicOrigin" . }}/realms/{{ .Values.keycloak.realm }}  # keycloak → 200
+
+{{- if .Values.keycloak.realmImport.enabled }}
+
+3) Realm import is ON — ensure the ConfigMap exists (created from the repo's realm file):
+     kubectl create configmap {{ .Values.keycloak.realmImport.existingConfigMap }} \
+       --from-file=realm-export.json=keycloak/realm-export.json -n {{ include "flightks.namespace" . }}
+{{- end }}
+
+4) Keycloak admin console (not exposed via the ingress by design):
+     helm upgrade {{ .Release.Name }} ./helm/flightks -n {{ include "flightks.namespace" . }} --reuse-values --set keycloak.adminUrl=http://localhost:8088
+     kubectl port-forward -n {{ include "flightks.namespace" . }} svc/{{ include "flightks.keycloak.fullname" . }} 8088:8080
+     # then open http://localhost:8088
+
+Full guide: DEPLOYMENT.md

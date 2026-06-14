@@ -14,7 +14,7 @@ public class BookingEndpointsTests(IntegrationWebAppFactory factory) : Integrati
         await using var db = CreateDb();
         var seed = new IntegrationSeeder(db);
         var origin = await seed.AirportAsync($"O{Guid.NewGuid().ToString()[..3].ToUpper()}");
-        var dest   = await seed.AirportAsync($"D{Guid.NewGuid().ToString()[..3].ToUpper()}");
+        var dest = await seed.AirportAsync($"D{Guid.NewGuid().ToString()[..3].ToUpper()}");
         var airline = await seed.AirlineAsync($"B{Guid.NewGuid().ToString()[..1].ToUpper()}");
         var aircraft = await seed.AircraftAsync(airline.Id);
         var flight = await seed.FlightAsync(airline.Id, origin.Id, dest.Id);

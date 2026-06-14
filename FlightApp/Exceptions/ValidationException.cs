@@ -14,5 +14,6 @@ public sealed class ValidationException : AppException
         : this("One or more validation errors occurred.", new Dictionary<string, string[]>
         {
             [field] = [error]
-        }) { }
+        })
+    { }
 }
