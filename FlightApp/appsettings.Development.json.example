@@ -15,7 +15,9 @@
     "Uri": "http://localhost:3100"
   },
   "Keycloak": {
-    "Authority": "http://localhost:8080/realms/flightks",
+    "Authority": "http://localhost/realms/flightks",
+    "MetadataAddress": "http://localhost:8080/realms/flightks/.well-known/openid-configuration",
+    "InternalAuthority": "http://localhost:8080/realms/flightks",
     "RequireHttpsMetadata": false,
     "AdminApiBaseUrl": "http://localhost:8080/admin/realms/flightks",
     "AdminClientId": "<KEYCLOAK_ADMIN_CLIENT_ID>",

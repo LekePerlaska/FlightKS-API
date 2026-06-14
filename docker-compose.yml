@@ -1,44 +1,60 @@
 services:
-  caddy:
-    image: caddy:2-alpine
-    profiles: [production]
+  nginx:
+    image: nginx:1.27-alpine
+    # Edge proxy: single public origin on :80 that routes / -> frontend, /api & /hubs -> api,
+    # and the Keycloak paths -> keycloak. Part of the default stack so the app works at
+    # http://localhost out of the box (and mirrors how a K8s Ingress will route in prod).
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      # TLS (443) is intentionally not configured yet. Add an HTTPS server block
+      # + certificates here later, or terminate TLS at a Kubernetes Ingress.
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    env_file: .env
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
-      - frontend
-      - api
-      - keycloak
+      frontend:
+        condition: service_started
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
     networks:
       - flightks-net
 
   frontend:
-    image: node:24-alpine
-    working_dir: /app
-    command: sh -c "npm install && npm run dev -- -H 0.0.0.0"
+    build:
+      context: C:/Users/Valeza/Desktop/flightks-client/flightks-client
+      dockerfile: Dockerfile
+      args:
+        # Relative so the browser calls the same origin it was served from (the edge).
+        # signalr-client derives /hubs from this too. Portable across dev/prod.
+        NEXT_PUBLIC_API_BASE_URL: /api/v1
+        # Empty → Keycloak adapter uses window.location.origin (the edge). Portable.
+        NEXT_PUBLIC_KEYCLOAK_URL: ""
+        NEXT_PUBLIC_KEYCLOAK_REALM: flightks
+        NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: flightks-client
+        NEXT_PUBLIC_POSTHOG_KEY: ""
+        NEXT_PUBLIC_POSTHOG_HOST: https://app.posthog.com
+        API_INTERNAL_BASE_URL: http://api:5194/api/v1
+    image: flightks-client:local
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:5194/api/v1
-      - NEXT_PUBLIC_KEYCLOAK_URL=http://localhost:8080
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - API_INTERNAL_BASE_URL=http://api:5194/api/v1
+      - NEXT_PUBLIC_API_BASE_URL=/api/v1
+      - NEXT_PUBLIC_KEYCLOAK_URL=
       - NEXT_PUBLIC_KEYCLOAK_REALM=flightks
       - NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=flightks-client
-      - NEXT_PUBLIC_SIGNALR_URL=http://localhost:5194
+      - NEXT_PUBLIC_SIGNALR_URL=http://localhost
       - NEXT_PUBLIC_POSTHOG_KEY=
       - NEXT_PUBLIC_POSTHOG_HOST=https://app.posthog.com
-    volumes:
-      - ../flightks-client/flightks-client:/app
-      - frontend_node_modules:/app/node_modules
-      - frontend_next:/app/.next
     depends_on:
-      - api
-      - keycloak
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
     networks:
       - flightks-net
 
@@ -48,13 +64,20 @@ services:
       - "5194:5194"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5194
       - ASPNETCORE_HTTP_PORTS=5194
 
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=flightks;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
 
       - Loki__Uri=http://loki:3100
 
-      - Keycloak__Authority=http://keycloak:8080/realms/flightks
+      # Public issuer (the edge origin) that tokens carry and the API validates against.
+      - Keycloak__Authority=http://localhost/realms/flightks
+      # Internal discovery/JWKS address — reachable from the API over the compose network.
+      # Keycloak (KC_HOSTNAME + backchannel-dynamic) keeps the issuer at the public URL above.
+      - Keycloak__MetadataAddress=http://keycloak:8080/realms/flightks/.well-known/openid-configuration
+      # Backchannel base for token/logout calls (API → Keycloak directly, not via the nginx edge).
+      - Keycloak__InternalAuthority=http://keycloak:8080/realms/flightks
       - Keycloak__RequireHttpsMetadata=false
       - Keycloak__Audience=flightks-api
       - Keycloak__AdminApiBaseUrl=http://keycloak:8080/admin/realms/flightks
@@ -62,21 +85,15 @@ services:
       - Keycloak__AdminClientSecret=${KEYCLOAK_ADMIN_CLIENT_SECRET}
       - Keycloak__FrontendClientId=${KEYCLOAK_FRONTEND_CLIENT_ID}
 
-      - Cors__AllowedOrigins__0=http://localhost:3000
+      - Cors__AllowedOrigins__0=http://localhost
+      - Cors__AllowedOrigins__1=http://localhost:3000
 
       - RateLimiting__Store=Distributed
       - RateLimiting__RedisConnectionString=redis:6379,password=${REDIS_PASSWORD}
 
-      - SignalR__RedisConnectionString=redis:6379
 
-      # SMTP email delivery. Leave Email__Host empty to disable (NullEmailSender).
-      - Email__Host=${EMAIL_HOST:-}
-      - Email__Port=${EMAIL_PORT:-587}
-      - Email__UseSsl=${EMAIL_USE_SSL:-true}
-      - Email__Username=${EMAIL_USERNAME:-}
-      - Email__Password=${EMAIL_PASSWORD:-}
-      - Email__FromAddress=${EMAIL_FROM_ADDRESS:-}
-      - Email__FromName=${EMAIL_FROM_NAME:-FlightKS}
+      # Trust the Docker bridge network so X-Forwarded-* headers from Nginx are accepted.
+      - ForwardedHeaders__KnownNetworks__0=172.16.0.0/12
 
     depends_on:
       postgres:
@@ -87,6 +104,12 @@ services:
         condition: service_healthy
       loki:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5194/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - flightks-net
 
@@ -137,7 +160,14 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
 
-      KC_HOSTNAME: localhost
+      # Public edge origin. Tokens are issued with iss = http://localhost/realms/flightks.
+      KC_HOSTNAME: http://localhost
+      # Resolve backchannel URLs (jwks_uri, token endpoint) from the request, so the API
+      # fetching discovery at http://keycloak:8080 gets reachable internal URLs while the
+      # issuer/frontend URLs stay at KC_HOSTNAME above. Removes the need for host rewriting.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Honor X-Forwarded-* from the nginx edge so Keycloak knows the original scheme/host/port.
+      KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
 
@@ -171,6 +201,38 @@ services:
     networks:
       - flightks-net
 
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_started
+    networks:
+      - flightks-net
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    networks:
+      - flightks-net
+
   loki:
     image: grafana/loki:3.0.0
     ports:
@@ -192,9 +254,22 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=false
     depends_on:
       - loki
+      - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - flightks-net
+
+  # Uptime Kuma is configured from its UI. Suggested monitors are documented in
+  # docs/uptime-kuma-monitors.md. It is exposed directly for local/admin use and
+  # is not routed through the product Nginx edge proxy by default.
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    ports:
+      - "3002:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
     networks:
       - flightks-net
 
@@ -203,14 +278,13 @@ networks:
     driver: bridge
 
 volumes:
-  frontend_node_modules:
-  frontend_next:
   postgres_data:
   keycloak_db_data:
+  prometheus_data:
+  alertmanager_data:
   loki_data:
   grafana_data:
   redis_data:
+  uptime_kuma_data:
   dp_keys:
   uploads:
-  caddy_data:
-  caddy_config:

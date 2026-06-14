@@ -1,0 +1,159 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "flightks.keycloak.fullname" . }}
+  namespace: {{ include "flightks.namespace" . }}
+  labels:
+    {{- include "flightks.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  # Keycloak keeps all state in Postgres; a single replica avoids extra cluster
+  # (JGroups) config. Scale out only with proper distributed-cache setup.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "flightks.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: keycloak
+  template:
+    metadata:
+      labels:
+        {{- include "flightks.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: keycloak
+    spec:
+      serviceAccountName: {{ include "flightks.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- include "flightks.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.securityContext.pod | nindent 8 }}
+      containers:
+        - name: keycloak
+          image: {{ .Values.keycloak.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext.container | nindent 12 }}
+          args:
+            - start
+            - --http-enabled=true
+            - --hostname-strict=false
+            {{- if .Values.keycloak.realmImport.enabled }}
+            - --import-realm
+            {{- end }}
+          env:
+            # --- Database (shared Postgres, dedicated keycloak DB) ---
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://{{ include "flightks.postgres.fullname" . }}:{{ .Values.postgres.port }}/{{ .Values.postgres.keycloakDatabase }}"
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flightks.secretName" . }}
+                  key: postgres-user
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flightks.secretName" . }}
+                  key: postgres-password
+            # --- Bootstrap admin (console login) ---
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flightks.secretName" . }}
+                  key: keycloak-admin-user
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flightks.secretName" . }}
+                  key: keycloak-admin-password
+            # --- Hostname / proxy ---
+            # Public edge origin → tokens are issued with this issuer. Backchannel
+            # URLs (jwks/token) are resolved from the request, so the API hitting
+            # the in-cluster service still gets reachable URLs. No host rewriting.
+            - name: KC_HOSTNAME
+              value: {{ include "flightks.publicOrigin" . | quote }}
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            {{- if .Values.keycloak.adminUrl }}
+            # Serve the admin console on its own URL (port-forward), so its login
+            # redirect doesn't bounce to the app origin where /admin is the frontend.
+            - name: KC_HOSTNAME_ADMIN
+              value: {{ .Values.keycloak.adminUrl | quote }}
+            {{- end }}
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            # --- Health/metrics on the management port (9000) ---
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: {{ .Values.keycloak.port }}
+            - name: management
+              containerPort: {{ .Values.keycloak.managementPort }}
+          {{- if .Values.keycloak.realmImport.enabled }}
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          {{- end }}
+          # Keycloak boot (DB migration + optional realm import) can take a while,
+          # so a startupProbe guards the slow start before liveness takes over.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.keycloak.resources | nindent 12 }}
+      {{- if .Values.keycloak.realmImport.enabled }}
+      volumes:
+        - name: realm-import
+          configMap:
+            # Create this from the repo's existing realm file (no duplication):
+            #   kubectl create configmap {{ .Values.keycloak.realmImport.existingConfigMap }} \
+            #     --from-file=realm-export.json=keycloak/realm-export.json -n <namespace>
+            name: {{ .Values.keycloak.realmImport.existingConfigMap }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "flightks.keycloak.fullname" . }}
+  namespace: {{ include "flightks.namespace" . }}
+  labels:
+    {{- include "flightks.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "flightks.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+  ports:
+    - name: http
+      port: {{ .Values.keycloak.port }}
+      targetPort: http
+      protocol: TCP

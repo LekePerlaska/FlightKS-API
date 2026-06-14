@@ -138,8 +138,8 @@ public sealed class IntegrationWebAppFactory : WebApplicationFactory<Program>, I
             services.Configure<AuthenticationOptions>(opts =>
             {
                 opts.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
-                opts.DefaultChallengeScheme    = TestAuthHandler.SchemeName;
-                opts.DefaultForbidScheme       = TestAuthHandler.SchemeName;
+                opts.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+                opts.DefaultForbidScheme = TestAuthHandler.SchemeName;
             });
 
             // Replace the real KeycloakService (requires a live Keycloak) with a no-op stub.

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "FlightKS Helm values",
+  "type": "object",
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "publicScheme": { "type": "string", "enum": ["http", "https"] },
+    "image": {
+      "type": "object",
+      "properties": {
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "pullSecrets": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "pod": { "type": "object" },
+        "container": { "type": "object" }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": ["integer", "string"] }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": { "type": "string", "minLength": 1 },
+        "annotations": { "type": "object" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" }
+          }
+        }
+      },
+      "required": ["host"]
+    },
+    "backend": { "$ref": "#/$defs/workload" },
+    "frontend": { "$ref": "#/$defs/workload" },
+    "postgres": {
+      "type": "object",
+      "properties": {
+        "image": { "type": "string" },
+        "port": { "type": "integer" },
+        "database": { "type": "string" },
+        "keycloakDatabase": { "type": "string" },
+        "storage": { "type": "string" }
+      }
+    },
+    "redis": {
+      "type": "object",
+      "properties": {
+        "image": { "type": "string" },
+        "port": { "type": "integer" }
+      }
+    },
+    "keycloak": {
+      "type": "object",
+      "properties": {
+        "image": { "type": "string" },
+        "port": { "type": "integer" },
+        "managementPort": { "type": "integer" },
+        "realm": { "type": "string" },
+        "adminUrl": { "type": "string" },
+        "realmImport": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "existingConfigMap": { "type": "string" }
+          }
+        }
+      }
+    },
+    "config": { "type": "object" },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    }
+  },
+  "required": ["publicScheme", "ingress", "backend", "frontend", "postgres", "redis", "keycloak", "secrets"],
+  "$defs": {
+    "workload": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1 }
+          },
+          "required": ["repository", "tag"]
+        },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "port": { "type": "integer" },
+        "resources": { "type": "object" }
+      },
+      "required": ["image", "port"]
+    }
+  }
+}

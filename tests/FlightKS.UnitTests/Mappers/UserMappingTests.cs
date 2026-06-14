@@ -46,9 +46,12 @@ public class UserMappingTests
         var passportDoc = E.PassportDoc(user.Id);
         var otherDoc = new UploadedFile
         {
-            Id = Guid.NewGuid(), UploadedByUserId = user.Id,
-            FileName = "other.pdf", OriginalFileName = "other.pdf",
-            ContentType = "application/pdf", SizeBytes = 100,
+            Id = Guid.NewGuid(),
+            UploadedByUserId = user.Id,
+            FileName = "other.pdf",
+            OriginalFileName = "other.pdf",
+            ContentType = "application/pdf",
+            SizeBytes = 100,
             StoragePath = "/uploads/other.pdf",
             RelatedEntityName = "SomeOtherType"
         };
