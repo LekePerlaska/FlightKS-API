@@ -41,11 +41,14 @@ public class AircraftCreateValidatorTests
         _sut.TestValidate(Valid() with { RegistrationNumber = new string('X', 21) })
             .ShouldHaveValidationErrorFor(x => x.RegistrationNumber);
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void TotalSeatsNotPositive_Fails(int seats) =>
-        _sut.TestValidate(Valid() with { TotalSeats = seats })
+    [Fact]
+    public void ZeroTotalSeats_Passes() =>
+        _sut.TestValidate(Valid() with { TotalSeats = 0 })
+            .ShouldNotHaveValidationErrorFor(x => x.TotalSeats);
+
+    [Fact]
+    public void NegativeTotalSeats_Fails() =>
+        _sut.TestValidate(Valid() with { TotalSeats = -1 })
             .ShouldHaveValidationErrorFor(x => x.TotalSeats);
 }
 
