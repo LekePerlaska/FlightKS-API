@@ -1,0 +1,82 @@
+{{- if .Values.ingress.enabled -}}
+{{/*
+NGINX Ingress — the single public origin, replacing the docker-compose nginx edge.
+Path-based routing (most-specific prefix wins):
+  /api, /hubs            -> backend  (/hubs upgrades to WebSocket for SignalR)
+  /realms, /resources, /js -> keycloak
+  /                      -> frontend (catch-all; this also serves the /admin SPA
+                            pages — the Keycloak admin REST API is reached
+                            in-cluster by the backend, not through this ingress)
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "flightks.fullname" . }}
+  namespace: {{ include "flightks.namespace" . }}
+  labels:
+    {{- include "flightks.labels" . | nindent 4 }}
+  annotations:
+    # Long timeouts keep SignalR (/hubs) WebSocket connections alive. ingress-nginx
+    # performs the WebSocket upgrade automatically; these just prevent idle teardown.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: {{ .Values.ingress.proxyReadTimeout | quote }}
+    nginx.ingress.kubernetes.io/proxy-send-timeout: {{ .Values.ingress.proxySendTimeout | quote }}
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.proxyBodySize | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  # TLS placeholder — provide a cert via this secret (e.g. cert-manager) to enable HTTPS.
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.backend.fullname" . }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /hubs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.backend.fullname" . }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /realms
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.keycloak.fullname" . }}
+                port:
+                  number: {{ .Values.keycloak.port }}
+          - path: /resources
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.keycloak.fullname" . }}
+                port:
+                  number: {{ .Values.keycloak.port }}
+          - path: /js
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.keycloak.fullname" . }}
+                port:
+                  number: {{ .Values.keycloak.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flightks.frontend.fullname" . }}
+                port:
+                  number: {{ .Values.frontend.port }}
+{{- end -}}

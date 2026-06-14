@@ -1,0 +1,226 @@
+# =============================================================================
+# FlightKS Helm values
+# -----------------------------------------------------------------------------
+# Everything that differs between environments lives here. Templates read only
+# from this file (plus the Secret for sensitive material). To deploy elsewhere,
+# copy this file, change the values, and pass it with `-f my-values.yaml`.
+#
+# SECRETS RULE: this file holds NON-sensitive config + PLACEHOLDER secrets only.
+# Real passwords/tokens/client-secrets must be supplied at install time
+# (`--set secrets.* ` , a private values file, SealedSecrets, or an external
+# Secret with `secrets.create=false`). Never commit real secrets here.
+# =============================================================================
+
+# Override the generated names if you need to. Normally leave empty.
+nameOverride: ""
+fullnameOverride: ""
+
+# All resources are created in the release namespace â€” choose it at install time
+# with `helm install/upgrade ... -n <ns> --create-namespace` (the chart does not
+# manage the Namespace object itself).
+
+# Scheme the public origin is served on. Use "https" once TLS is terminated at
+# the ingress. Drives the Keycloak issuer (Authority) and CORS origin.
+publicScheme: http
+
+image:
+  pullPolicy: IfNotPresent
+  # Pull secret(s) for GHCR images. Create one from a GitHub PAT (read:packages):
+  #   kubectl create secret docker-registry ghcr-creds \
+  #     --docker-server=ghcr.io --docker-username=<github-user> \
+  #     --docker-password=<PAT-with-read:packages> -n <namespace>
+  pullSecrets:
+    - ghcr-creds
+
+# ----------------------------------------------------------------------------
+# Workload hardening & ops (production defaults)
+# ----------------------------------------------------------------------------
+# Dedicated ServiceAccount for every pod. None of them call the Kubernetes API,
+# so the token is NOT mounted â€” shrinks blast radius if a pod is compromised.
+serviceAccount:
+  create: true
+  name: ""              # empty â†’ the release fullname (e.g. "flightks")
+  annotations: {}
+
+# Security context applied to the APP tier (backend, frontend, keycloak) â€” these
+# images already run non-root, so this enforces and hardens it. The DATA tier
+# (postgres/redis) keeps its image defaults: the official Postgres image
+# must start as root to set volume ownership, then drops privileges internally.
+securityContext:
+  pod:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  container:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false   # .NET / Next.js / Keycloak write to temp dirs
+    capabilities:
+      drop: ["ALL"]
+
+# Keep at least one replica up during voluntary disruptions (node drain/upgrade).
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ----------------------------------------------------------------------------
+# Ingress (NGINX Ingress Controller). Replaces the docker-compose nginx edge.
+# ----------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  # The single public host. Point your DNS / hosts file at the ingress LB.
+  # For local clusters add `127.0.0.1 flightks.local` to your hosts file.
+  host: flightks.local
+  # Extra annotations merged onto the Ingress. For HTTPS via cert-manager, set
+  # e.g. { cert-manager.io/issuer: letsencrypt } and tls.enabled: true below.
+  annotations: {}
+  tls:
+    # Set enabled: true + provide a cert (cert-manager fills the secret) for HTTPS.
+    enabled: false
+    secretName: flightks-tls
+  # Long timeouts keep SignalR (/hubs) WebSocket connections alive; body size
+  # covers file uploads. Merged with the per-path config in the template.
+  proxyReadTimeout: "3600"
+  proxySendTimeout: "3600"
+  proxyBodySize: "25m"
+
+# ----------------------------------------------------------------------------
+# Backend â€” ASP.NET Core API (.NET 10)
+# ----------------------------------------------------------------------------
+backend:
+  image:
+    repository: ghcr.io/lekeperlaska/flightks-api
+    tag: latest
+  replicas: 2
+  port: 5194
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ----------------------------------------------------------------------------
+# Frontend â€” Next.js (standalone). NEXT_PUBLIC_* are baked into the image at
+# build time; at runtime only the SSR vars (API_INTERNAL_BASE_URL, PORT) matter.
+# ----------------------------------------------------------------------------
+frontend:
+  image:
+    # Built & published from your fork; pulled with the ghcr-creds secret above.
+    repository: ghcr.io/valezasutaj/flightks-client
+    tag: latest
+  replicas: 2
+  port: 3000
+  posthogHost: https://app.posthog.com
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+# ----------------------------------------------------------------------------
+# PostgreSQL â€” shared instance. Hosts both the app DB and the Keycloak DB
+# (the keycloak DB is created by a first-boot init script; see the statefulset).
+# ----------------------------------------------------------------------------
+postgres:
+  image: postgres:17
+  port: 5432
+  database: flightks
+  keycloakDatabase: keycloak
+  storage: 5Gi
+  # Leave empty to use the cluster default StorageClass.
+  storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ----------------------------------------------------------------------------
+# Redis â€” rate-limiter distributed store.
+# ----------------------------------------------------------------------------
+redis:
+  image: redis:7-alpine
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ----------------------------------------------------------------------------
+# Keycloak â€” identity provider.
+# ----------------------------------------------------------------------------
+keycloak:
+  image: quay.io/keycloak/keycloak:26.1.3
+  port: 8080
+  # Management port (health/metrics) â€” Keycloak 25+ serves /health here.
+  managementPort: 9000
+  realm: flightks
+  # Optional: serve the Keycloak admin console on a DIFFERENT URL than the public
+  # app origin. The app origin (KC_HOSTNAME) is the ingress host, which routes
+  # /admin to the frontend â€” so to reach the Keycloak admin console you port-forward
+  # the service and set this to that URL (e.g. http://localhost:8088 for
+  # `kubectl port-forward svc/<release>-keycloak 8088:8080`). Empty = not set.
+  adminUrl: ""
+  # Realm import reuses the repo's keycloak/realm-export.json WITHOUT copying it
+  # into the chart. Create the ConfigMap from the existing file first:
+  #   kubectl create configmap flightks-keycloak-realm \
+  #     --from-file=realm-export.json=keycloak/realm-export.json -n flightks
+  # Then keep `enabled: true`. Import only runs when the realm does not yet exist.
+  realmImport:
+    enabled: true
+    existingConfigMap: flightks-keycloak-realm
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ----------------------------------------------------------------------------
+# Non-sensitive application config (rendered into the ConfigMap).
+# ----------------------------------------------------------------------------
+config:
+  aspnetcoreEnvironment: Production
+  # Serilog â†’ Loki sink. Monitoring (Loki/Grafana) is out of this chart's scope;
+  # leave empty to disable shipping logs to Loki (console logging still works).
+  # Set to e.g. http://loki:3100 if you deploy Loki separately.
+  lokiUri: ""
+  rateLimiting:
+    store: Distributed
+  # CIDRs the API trusts for X-Forwarded-* (ingress-nginx sits on the pod
+  # network). Broad cluster ranges by default; tighten to your pod CIDR in prod.
+  forwardedHeaders:
+    knownNetworks:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+  keycloak:
+    audience: flightks-api
+    requireHttpsMetadata: false
+    # Client IDs are NOT secrets (the client SECRET is â€” see secrets below).
+    # These must match the clients defined in the imported realm.
+    adminClientId: flightks-admin-client
+    frontendClientId: flightks-client
+
+# ----------------------------------------------------------------------------
+# Secrets â€” PLACEHOLDERS ONLY. Override at install time. See SECRETS RULE above.
+# Set `create: false` to use an existing Secret named "<fullname>-secrets".
+# ----------------------------------------------------------------------------
+secrets:
+  create: true
+  postgresUser: flightks
+  postgresPassword: CHANGEME-postgres-password
+  keycloakAdminUser: admin
+  keycloakAdminPassword: CHANGEME-keycloak-admin-password
+  # Client secret of the backend's Keycloak admin service-account client.
+  keycloakAdminClientSecret: CHANGEME-admin-client-secret
+  redisPassword: CHANGEME-redis-password

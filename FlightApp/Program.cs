@@ -24,6 +24,7 @@ using StackExchange.Redis;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Prometheus;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Sinks.Grafana.Loki;
@@ -107,21 +108,26 @@ builder.Services.AddRateLimiter(limiterOptions =>
             GetMux(ctx)));
 });
 
-var keycloakAuthority = builder.Configuration["Keycloak:Authority"] ?? string.Empty;
-var runningInDocker = keycloakAuthority.Contains("keycloak:", StringComparison.OrdinalIgnoreCase);
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = keycloakAuthority;
+        // Public issuer the tokens carry (the edge origin, e.g. http://localhost/realms/flightks).
+        // The token's `iss` is validated against the issuer discovered from the metadata below.
+        var authority = builder.Configuration["Keycloak:Authority"];
+        if (!string.IsNullOrEmpty(authority))
+            options.Authority = authority;
+
+        // Where the API fetches OIDC metadata + JWKS. In containers this is the INTERNAL
+        // Keycloak address (e.g. http://keycloak:8080/realms/flightks/.well-known/openid-configuration).
+        // Keycloak (KC_HOSTNAME + hostname-backchannel-dynamic) keeps the issuer at the public edge
+        // URL while serving reachable backchannel URLs — so no host rewriting is needed.
+        var metadataAddress = builder.Configuration["Keycloak:MetadataAddress"];
+        if (!string.IsNullOrEmpty(metadataAddress))
+            options.MetadataAddress = metadataAddress;
+
         options.RequireHttpsMetadata = builder.Configuration.GetValue<bool>("Keycloak:RequireHttpsMetadata");
         options.MapInboundClaims = false;
-        if (runningInDocker)
-        {
-            // Keycloak's discovery doc returns localhost:8080 for jwks_uri, but that
-            // doesn't resolve inside Docker — rewrite to the internal service name.
-            options.BackchannelHttpHandler = new KeycloakBackchannelHandler(new HttpClientHandler());
-        }
+
         var audience = builder.Configuration["Keycloak:Audience"];
         options.TokenValidationParameters = new()
         {
@@ -281,7 +287,7 @@ var app = builder.Build();
 // Dev: trust all sources (no reverse proxy in the compose stack).
 // Prod: set ForwardedHeaders:KnownProxies (individual IPs) and/or
 //       ForwardedHeaders:KnownNetworks (CIDR ranges, e.g. 172.16.0.0/12 for
-//       the Docker bridge network when Caddy runs as a sidecar container).
+//       the Docker bridge network when the reverse proxy runs as a sidecar container).
 var fwdOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
@@ -317,6 +323,7 @@ else
     }
 }
 app.UseForwardedHeaders(fwdOptions);
+app.UseHttpMetrics();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -426,6 +433,8 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
         });
     },
 });
+
+app.MapMetrics("/metrics").DisableRateLimiting();
 
 app.Run();
 
