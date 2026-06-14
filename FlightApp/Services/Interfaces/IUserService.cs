@@ -39,6 +39,10 @@ public interface IUserService
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<User>> GetAllForAdminAsync(
+        string? search,
+        bool? isActive,
+        CancellationToken cancellationToken = default);
 
     Task<User?> SetActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default);
     Task<User?> SetAirlineAsync(Guid userId, Guid? airlineId, CancellationToken cancellationToken = default);

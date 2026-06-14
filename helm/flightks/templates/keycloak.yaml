@@ -1,3 +1,8 @@
+{{- /* Defensive default: `helm upgrade --reuse-values` (used by CI) renders these
+       templates against the previously-stored values, which predate keycloak.theme.
+       Falling back to an empty dict keeps `.enabled` a safe no-op instead of a nil
+       pointer, so an existing release keeps deploying until theme values are set. */ -}}
+{{- $kcTheme := .Values.keycloak.theme | default dict -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -97,11 +102,18 @@ spec:
               containerPort: {{ .Values.keycloak.port }}
             - name: management
               containerPort: {{ .Values.keycloak.managementPort }}
-          {{- if .Values.keycloak.realmImport.enabled }}
+          {{- if or .Values.keycloak.realmImport.enabled $kcTheme.enabled }}
           volumeMounts:
+            {{- if .Values.keycloak.realmImport.enabled }}
             - name: realm-import
               mountPath: /opt/keycloak/data/import
               readOnly: true
+            {{- end }}
+            {{- if $kcTheme.enabled }}
+            - name: login-theme
+              mountPath: /opt/keycloak/themes/{{ $kcTheme.name | default "flightks" }}/login
+              readOnly: true
+            {{- end }}
           {{- end }}
           # Keycloak boot (DB migration + optional realm import) can take a while,
           # so a startupProbe guards the slow start before liveness takes over.
@@ -129,14 +141,36 @@ spec:
             failureThreshold: 6
           resources:
             {{- toYaml .Values.keycloak.resources | nindent 12 }}
-      {{- if .Values.keycloak.realmImport.enabled }}
+      {{- if or .Values.keycloak.realmImport.enabled $kcTheme.enabled }}
       volumes:
+        {{- if .Values.keycloak.realmImport.enabled }}
         - name: realm-import
           configMap:
             # Create this from the repo's existing realm file (no duplication):
             #   kubectl create configmap {{ .Values.keycloak.realmImport.existingConfigMap }} \
             #     --from-file=realm-export.json=keycloak/realm-export.json -n <namespace>
             name: {{ .Values.keycloak.realmImport.existingConfigMap }}
+        {{- end }}
+        {{- if $kcTheme.enabled }}
+        - name: login-theme
+          configMap:
+            # Create this from the repo's theme files (no duplication):
+            #   kubectl create configmap {{ $kcTheme.existingConfigMap | default "flightks-keycloak-theme" }} \
+            #     --from-file=theme.properties=keycloak/themes/flightks/login/theme.properties \
+            #     --from-file=login.ftl=keycloak/themes/flightks/login/login.ftl \
+            #     --from-file=flightks.css=keycloak/themes/flightks/login/resources/css/flightks.css \
+            #     -n <namespace>
+            name: {{ $kcTheme.existingConfigMap | default "flightks-keycloak-theme" }}
+            # Flat ConfigMap keys → the nested paths Keycloak expects under the theme's
+            # login/ directory (the mount point set in volumeMounts above).
+            items:
+              - key: theme.properties
+                path: theme.properties
+              - key: login.ftl
+                path: login.ftl
+              - key: flightks.css
+                path: resources/css/flightks.css
+        {{- end }}
       {{- end }}
 ---
 apiVersion: v1

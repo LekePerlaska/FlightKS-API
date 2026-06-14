@@ -1,0 +1,409 @@
+/* FlightKS Keycloak login theme — mirrors the frontend register-form design. */
+
+:root {
+  --fk-bg: #f8fafc;          /* slate-50  */
+  --fk-card: #ffffff;
+  --fk-border: #e2e8f0;      /* slate-200 */
+  --fk-text: #0f172a;        /* slate-900 */
+  --fk-muted: #64748b;       /* slate-500 */
+  --fk-label: #374151;       /* gray-700  */
+  --fk-input-border: #d1d5db;/* gray-300  */
+  --fk-input-text: #111827;  /* gray-900  */
+  --fk-placeholder: #9ca3af; /* gray-400  */
+  --fk-primary: #2563eb;     /* blue-600  */
+  --fk-primary-hover: #1d4ed8;/* blue-700 */
+  --fk-primary-disabled: #93c5fd; /* blue-300 */
+  --fk-ring: #3b82f6;        /* blue-500  */
+  --fk-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html.flightks-html,
+body.flightks-body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--fk-bg);
+  font-family: var(--fk-font);
+  color: var(--fk-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.flightks-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 3rem 1rem;
+}
+
+/* ---- Brand (plane logo + wordmark), mirrors register-form header ---- */
+.flightks-header {
+  width: 100%;
+  max-width: 28rem;
+}
+
+.flightks-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  margin: 0 auto 1.5rem;
+  font-size: 0; /* hides the realm display name text */
+  line-height: 1;
+}
+
+.flightks-brand::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Cpath%20fill='%232563EB'%20d='M491.108,311.699l-123.602-98.404v-44.206c0-21.831-17.761-39.59-39.59-39.59c-21.829,0-39.59,17.761-39.59,39.59v155.053v48.268l-24.632-16.533c-4.652-3.123-10.73-3.122-15.382,0l-24.632,16.533v-48.268V169.089V59.923c0-17.823,14.5-32.323,32.323-32.323s32.323,14.5,32.323,32.323v25.415c0,7.622,6.178,13.8,13.8,13.8s13.8-6.178,13.8-13.8V59.923C315.925,26.881,289.043,0,256.001,0s-59.923,26.881-59.923,59.923v71.437c-3.784-1.205-7.812-1.862-11.99-1.862c-21.831,0-39.59,17.761-39.59,39.59v44.206L20.895,311.699c-3.289,2.618-5.204,6.592-5.204,10.796v48.892c0,4.277,1.983,8.312,5.368,10.926c3.752,2.572,8.534,3.131,12.778,1.492l50.641-19.567C84.232,496.959,235.388,512,256,512s37.768-15.04,41.097-34.72l50.641,19.567c4.244,1.639,9.026,1.08,12.778-1.492c3.387-2.614,5.368-6.648,5.368-10.926v-48.892c0-4.204-1.915-8.178-5.204-10.796L196.078,313.49V178.883v-9.795c0-6.612,5.378-11.99,11.99-11.99s11.99,5.378,11.99,11.99v50.859c0,4.204,1.915,8.178,5.204,10.796l123.602,98.404v24.36H196.078z'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+}
+
+.flightks-brand::after {
+  content: "FlightKS";
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--fk-text);
+}
+
+/* ---- Card ---- */
+.flightks-card {
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem;
+  background: var(--fk-card);
+  border: 1px solid var(--fk-border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.flightks-card-header {
+  margin-bottom: 1.5rem;
+}
+
+#kc-page-title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--fk-text);
+}
+
+/* Optional required-field hint row that some pages render */
+#kc-content,
+#kc-content-wrapper,
+#kc-form,
+#kc-form-wrapper {
+  width: 100%;
+}
+
+/* ---- Form groups ---- */
+.flightks-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.flightks-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fk-label);
+}
+
+/* ---- Inputs ---- */
+.flightks-input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+select.flightks-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--fk-input-text);
+  background: #fff;
+  border: 1px solid var(--fk-input-border);
+  border-radius: 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.flightks-input::placeholder {
+  color: var(--fk-placeholder);
+}
+
+.flightks-input:focus,
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="tel"]:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--fk-ring);
+}
+
+.flightks-form-group-error .flightks-input,
+.flightks-input[aria-invalid="true"] {
+  border-color: #f87171; /* red-400 */
+}
+
+.flightks-input-error {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #ef4444; /* red-500 */
+}
+
+.flightks-helper {
+  font-size: 0.75rem;
+  color: var(--fk-muted);
+}
+
+/* Password input-group + visibility toggle */
+.flightks-input-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.flightks-input-group .flightks-input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.flightks-pw-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.75rem;
+  margin-left: -1px;
+  color: var(--fk-muted);
+  background: #fff;
+  border: 1px solid var(--fk-input-border);
+  border-left: none;
+  border-top-right-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.flightks-pw-toggle::before {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%239ca3af'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M2%2012s3-7%2010-7%2010%207%2010%207-3%207-10%207-10-7-10-7z'/%3E%3Ccircle%20cx='12'%20cy='12'%20r='3'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+}
+
+.flightks-pw-toggle:hover {
+  color: var(--fk-label);
+}
+
+/* ---- Options row (remember me / forgot password) ---- */
+.flightks-form-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--fk-muted);
+}
+
+.flightks-form-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.flightks-checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--fk-primary);
+}
+
+/* ---- Buttons ---- */
+.flightks-form-buttons {
+  margin-top: 1.25rem;
+}
+
+.flightks-btn-primary,
+#kc-login,
+input[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 3rem;
+  padding: 0 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #fff;
+  background: var(--fk-primary);
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.flightks-btn-primary:hover,
+#kc-login:hover,
+input[type="submit"]:hover {
+  background: var(--fk-primary-hover);
+}
+
+.flightks-btn-primary:disabled,
+#kc-login:disabled {
+  background: var(--fk-primary-disabled);
+  cursor: not-allowed;
+}
+
+/* Secondary / default buttons (e.g. cancel) */
+.flightks-btn-default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 3rem;
+  padding: 0 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--fk-label);
+  background: #fff;
+  border: 1px solid var(--fk-input-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.flightks-btn-default:hover {
+  background: #f9fafb; /* gray-50 */
+}
+
+/* ---- Links ---- */
+a {
+  color: var(--fk-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--fk-primary-hover);
+}
+
+/* Registration / info footer */
+#kc-registration,
+#kc-registration-container,
+#kc-info,
+#kc-info-wrapper {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--fk-muted);
+}
+
+/* ---- Alerts / feedback messages ---- */
+.flightks-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fecaca; /* red-200 */
+  background: #fef2f2;       /* red-50  */
+  color: #b91c1c;            /* red-700 */
+}
+
+.flightks-alert.pf-m-success,
+.flightks-alert[class*="success"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.flightks-alert.pf-m-warning,
+.flightks-alert[class*="warning"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.flightks-alert.pf-m-info,
+.flightks-alert[class*="info"] {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.flightks-alert-title {
+  font-weight: 500;
+}
+
+/* hide decorative alert icons inherited from base */
+.flightks-feedback-error,
+.flightks-alert .pf-icon,
+.flightks-alert svg {
+  display: none;
+}
+
+/* ---- Social / identity providers ---- */
+.flightks-social {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.flightks-social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fk-label);
+  background: #fff;
+  border: 1px solid var(--fk-input-border);
+  border-radius: 0.5rem;
+  text-decoration: none;
+}
+
+.flightks-social-btn:hover {
+  background: #f9fafb;
+  color: var(--fk-label);
+}
+
+/* ---- Language selector ---- */
+#kc-locale {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 0.875rem;
+}
+
+#kc-locale ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

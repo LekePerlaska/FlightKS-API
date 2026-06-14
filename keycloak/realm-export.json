@@ -1,6 +1,7 @@
 {
   "id": "ae8dff02-386f-4926-aaec-8defeac1c95d",
   "realm": "flightks",
+  "loginTheme": "flightks",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,

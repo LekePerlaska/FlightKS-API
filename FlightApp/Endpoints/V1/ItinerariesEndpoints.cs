@@ -105,7 +105,9 @@ public static class ItinerariesEndpoints
         var priceByClass = schedule?.Prices.ToDictionary(p => p.SeatClass, p => p.Price)
             ?? [];
         var seats = await schedules.GetSeatsAsync(segment.FlightScheduleId, cancellationToken);
+        var statuses = await schedules.GetSeatStatusesAsync(segment.FlightScheduleId, cancellationToken);
         return TypedResults.Ok(seats.Select(s => s.ToScheduleSeatDto(
-            priceByClass.TryGetValue(s.SeatClass, out var classPrice) ? classPrice : fallbackPrice)));
+            priceByClass.TryGetValue(s.SeatClass, out var classPrice) ? classPrice : fallbackPrice,
+            statuses.TryGetValue(s.Id, out var status) ? status : FlightSeatStatus.Available)));
     }
 }

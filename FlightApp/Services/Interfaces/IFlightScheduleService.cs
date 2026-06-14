@@ -11,6 +11,10 @@ public interface IFlightScheduleService
     Task<SeatSummary?> GetSeatSummaryAsync(Guid scheduleId, CancellationToken cancellationToken = default);
     Task<IEnumerable<Seat>> GetSeatsAsync(Guid scheduleId, CancellationToken cancellationToken = default);
 
+    /// <summary>Current per-seat status for a schedule, keyed by aircraft seat id. Seats with no
+    /// FlightSeat row yet are simply absent (treat as Available).</summary>
+    Task<IReadOnlyDictionary<Guid, FlightSeatStatus>> GetSeatStatusesAsync(Guid scheduleId, CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<FlightSchedule> Items, int Total)> GetAllForAdminAsync(
         string? search, FlightScheduleStatus? status, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<FlightSchedule> CreateAsync(Guid flightId, Guid aircraftId, DateTime departureTime, DateTime arrivalTime, decimal? currentPrice, string? gate, IReadOnlyDictionary<SeatClass, decimal>? classPrices = null, CancellationToken cancellationToken = default);

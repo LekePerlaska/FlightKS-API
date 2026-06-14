@@ -123,6 +123,29 @@ public class UserService(AppDbContext db) : IUserService
         int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var query = BuildAdminQuery(search, isActive);
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, total);
+    }
+
+    public async Task<IReadOnlyList<User>> GetAllForAdminAsync(
+        string? search,
+        bool? isActive,
+        CancellationToken cancellationToken = default) =>
+        await BuildAdminQuery(search, isActive)
+            .OrderByDescending(u => u.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+    private IQueryable<User> BuildAdminQuery(string? search, bool? isActive)
+    {
         var query = db.Users.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -136,15 +159,7 @@ public class UserService(AppDbContext db) : IUserService
         if (isActive.HasValue)
             query = query.Where(u => u.IsActive == isActive.Value);
 
-        var total = await query.CountAsync(cancellationToken);
-
-        var items = await query
-            .OrderByDescending(u => u.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        return (items, total);
+        return query;
     }
 
     public async Task<User?> SetActiveAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default)

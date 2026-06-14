@@ -178,6 +178,20 @@ keycloak:
   realmImport:
     enabled: true
     existingConfigMap: flightks-keycloak-realm
+  # Custom FlightKS login theme (matches the frontend register/login design and adds
+  # a "Register" link to the frontend). Mirrors realmImport: build the ConfigMap from
+  # the repo's theme files WITHOUT copying them into the chart, then keep enabled: true.
+  #   kubectl create configmap flightks-keycloak-theme \
+  #     --from-file=theme.properties=keycloak/themes/flightks/login/theme.properties \
+  #     --from-file=login.ftl=keycloak/themes/flightks/login/login.ftl \
+  #     --from-file=flightks.css=keycloak/themes/flightks/login/resources/css/flightks.css \
+  #     -n <namespace>
+  # The realm's loginTheme is "flightks" in realm-export.json (applied on first import).
+  # For an ALREADY-imported realm, set it once via the admin console or kcadm.
+  theme:
+    enabled: true
+    name: flightks
+    existingConfigMap: flightks-keycloak-theme
   resources:
     requests:
       cpu: 250m

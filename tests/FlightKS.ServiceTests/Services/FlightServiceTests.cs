@@ -70,4 +70,31 @@ public class FlightServiceTests(PostgresFixture fixture) : ServiceTestBase(fixtu
         flight.FlightNumber.Should().Be("QF001");
         flight.BasePrice.Should().Be(150m);
     }
+
+    [Fact]
+    public async Task GetAllForAdminAsync_FiltersByAirlineAndRoute()
+    {
+        await using var setupDb = CreateContext();
+        var seed = new SeedData(setupDb);
+        var airlineOne = await seed.AirlineAsync("FA", "Filter Air");
+        var airlineTwo = await seed.AirlineAsync("FB", "Filter Blue");
+        var originOne = await seed.AirportAsync("F01", city: "Origin One");
+        var originTwo = await seed.AirportAsync("F02", city: "Origin Two");
+        var destination = await seed.AirportAsync("F03", city: "Destination");
+        await seed.FlightAsync(airlineOne.Id, originOne.Id, destination.Id, "FA101");
+        var expected = await seed.FlightAsync(airlineTwo.Id, originTwo.Id, destination.Id, "FB202");
+
+        await using var db = CreateContext();
+        var (items, total) = await MakeSut(db).GetAllForAdminAsync(
+            search: null,
+            airlineId: airlineTwo.Id,
+            originAirportId: originTwo.Id,
+            destinationAirportId: destination.Id,
+            isActive: null,
+            page: 1,
+            pageSize: 20);
+
+        total.Should().Be(1);
+        items.Should().ContainSingle().Which.Id.Should().Be(expected.Id);
+    }
 }

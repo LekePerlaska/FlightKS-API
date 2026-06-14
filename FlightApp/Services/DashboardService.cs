@@ -134,19 +134,32 @@ public class DashboardService(AppDbContext db) : IDashboardService
 
     public async Task<FlightManagerDashboardSummaryDto> GetFlightManagerSummaryAsync(Guid flightManagerUserId, CancellationToken cancellationToken = default)
     {
+        // Scope every count to the manager's assigned airline. With no airline
+        // assigned the manager manages nothing, so all counts are zero.
+        var airlineId = await db.Users.AsNoTracking()
+            .Where(u => u.Id == flightManagerUserId)
+            .Select(u => u.AirlineId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (airlineId is null)
+            return new FlightManagerDashboardSummaryDto(0, 0, 0, 0);
+
         var todayStart = DateTime.UtcNow.Date;
         var todayEnd = todayStart.AddDays(1);
 
-        var todaySchedules = await db.FlightSchedules.AsNoTracking()
+        var scoped = db.FlightSchedules.AsNoTracking()
+            .Where(s => s.Flight.AirlineId == airlineId);
+
+        var todaySchedules = await scoped
             .CountAsync(s => s.DepartureTime >= todayStart && s.DepartureTime < todayEnd, cancellationToken);
 
-        var upcomingSchedules = await db.FlightSchedules.AsNoTracking()
+        var upcomingSchedules = await scoped
             .CountAsync(s => s.DepartureTime >= todayEnd && s.Status == FlightScheduleStatus.Scheduled, cancellationToken);
 
-        var delayedToday = await db.FlightSchedules.AsNoTracking()
+        var delayedToday = await scoped
             .CountAsync(s => s.DepartureTime >= todayStart && s.DepartureTime < todayEnd && s.Status == FlightScheduleStatus.Delayed, cancellationToken);
 
-        var cancelledToday = await db.FlightSchedules.AsNoTracking()
+        var cancelledToday = await scoped
             .CountAsync(s => s.DepartureTime >= todayStart && s.DepartureTime < todayEnd && s.Status == FlightScheduleStatus.Cancelled, cancellationToken);
 
         return new FlightManagerDashboardSummaryDto(todaySchedules, upcomingSchedules, delayedToday, cancelledToday);

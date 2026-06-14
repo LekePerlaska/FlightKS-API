@@ -11,8 +11,6 @@ namespace FlightKS.Services;
 
 public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHub) : ISeatReservationService
 {
-    private static readonly TimeSpan DefaultHold = TimeSpan.FromMinutes(15);
-
     public async Task<IEnumerable<FlightSeat>> GetForBookingAsync(Guid bookingId, Guid? ownerUserId = null, CancellationToken cancellationToken = default)
     {
         var q = db.Tickets.AsNoTracking()
@@ -81,7 +79,9 @@ public class SeatReservationService(AppDbContext db, IHubContext<SeatHub> seatHu
             throw new ConflictException("This seat is no longer available.");
 
         flightSeat.Status = FlightSeatStatus.Reserved;
-        flightSeat.ReservedUntil = DateTime.UtcNow.Add(holdFor ?? DefaultHold);
+        // No time-based hold: the seat stays reserved until the booking's payment is
+        // confirmed (-> Booked) or the reservation is released/cancelled. No 15-minute expiry.
+        flightSeat.ReservedUntil = null;
         flightSeat.UpdatedAt = DateTime.UtcNow;
 
         var ticket = new Ticket

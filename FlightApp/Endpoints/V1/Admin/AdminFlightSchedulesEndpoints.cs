@@ -29,11 +29,14 @@ public static class AdminFlightSchedulesEndpoints
         IFlightScheduleService schedules,
         CancellationToken cancellationToken,
         string? search = null,
-        FlightScheduleStatus? status = null,
+        string? status = null,
         int page = 1,
         int pageSize = 20)
     {
-        var (items, total) = await schedules.GetAllForAdminAsync(search, status, page, pageSize, cancellationToken);
+        if (!TryParseStatus(status, out var statusFilter))
+            return TypedResults.BadRequest(new { message = $"Invalid schedule status '{status}'." });
+
+        var (items, total) = await schedules.GetAllForAdminAsync(search, statusFilter, page, pageSize, cancellationToken);
         return TypedResults.Ok(new PagedResult<FlightScheduleAdminListItemDto>(items.Select(s => s.ToAdminListItem()).ToList(), total, page, pageSize));
     }
 
@@ -85,4 +88,23 @@ public static class AdminFlightSchedulesEndpoints
             : classPrices
                 .GroupBy(c => c.SeatClass)
                 .ToDictionary(g => g.Key, g => g.Last().Price);
+
+    private static bool TryParseStatus(string? value, out FlightScheduleStatus? status)
+    {
+        status = null;
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+
+        var normalized = value.Trim().Replace("-", string.Empty).Replace("_", string.Empty);
+        foreach (var candidate in Enum.GetValues<FlightScheduleStatus>())
+        {
+            if (string.Equals(candidate.ToString(), normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                status = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

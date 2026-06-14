@@ -80,12 +80,13 @@ public static class FlightScheduleMapping
         fs.Price,
         fs.ReservedUntil);
 
-    public static ScheduleSeatDto ToScheduleSeatDto(this Seat s, decimal price) => new(
+    public static ScheduleSeatDto ToScheduleSeatDto(this Seat s, decimal price, FlightSeatStatus status) => new(
         s.Id,
         s.SeatNumber,
         s.SeatClass,
         s.IsWindow,
         s.IsAisle,
         s.ExtraLegroom,
+        status,
         price);
 }

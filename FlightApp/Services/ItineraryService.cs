@@ -89,9 +89,37 @@ public class ItineraryService(AppDbContext db) : IItineraryService
             .ToListAsync(cancellationToken);
 
     public async Task<(IReadOnlyList<Itinerary> Items, int Total)> GetAllForAdminAsync(
-        bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default)
+        string? search,
+        int? stopsCount,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
         var q = LoadFull(asNoTracking: true).IgnoreQueryFilters().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            q = q.Where(i =>
+                i.OriginAirport.Code.ToLower().Contains(term) ||
+                i.OriginAirport.Name.ToLower().Contains(term) ||
+                i.OriginAirport.City.ToLower().Contains(term) ||
+                i.DestinationAirport.Code.ToLower().Contains(term) ||
+                i.DestinationAirport.Name.ToLower().Contains(term) ||
+                i.DestinationAirport.City.ToLower().Contains(term) ||
+                i.Segments.Any(s =>
+                    s.FlightSchedule.Flight.FlightNumber.ToLower().Contains(term) ||
+                    s.FlightSchedule.Flight.Airline.Name.ToLower().Contains(term) ||
+                    s.FlightSchedule.Flight.Airline.Code.ToLower().Contains(term)));
+        }
+
+        if (stopsCount is not null)
+        {
+            q = stopsCount >= 2
+                ? q.Where(i => i.StopsCount >= stopsCount.Value)
+                : q.Where(i => i.StopsCount == stopsCount.Value);
+        }
 
         if (isActive is not null)
             q = q.Where(i => i.IsActive == isActive);
@@ -116,31 +144,26 @@ public class ItineraryService(AppDbContext db) : IItineraryService
             schedules.Add(schedule);
         }
 
-        var originId = schedules[0].Flight.OriginAirportId;
-        var destId = schedules[^1].Flight.DestinationAirportId;
-
         var candidates = new List<SegmentCandidate>(schedules.Count);
         for (var i = 0; i < schedules.Count; i++)
         {
             int? layover = i < schedules.Count - 1
                 ? Math.Max(0, (int)Math.Round((schedules[i + 1].DepartureTime - schedules[i].ArrivalTime).TotalMinutes))
                 : null;
-            candidates.Add(new SegmentCandidate(i + 1, layover, schedules[i]));
+            candidates.Add(new SegmentCandidate(null, i + 1, layover, schedules[i]));
         }
 
-        ValidateSegmentChain(originId, destId, schedules[0].DepartureTime, schedules[^1].ArrivalTime, candidates, enforceTimeWindow: false);
+        var derivedCandidates = ValidateAndDeriveSegmentChain(candidates);
 
         var itinerary = new Itinerary
         {
-            OriginAirportId = originId,
-            DestinationAirportId = destId,
             IsActive = true,
         };
-        SyncItineraryFromSegments(itinerary, candidates);
+        SyncItineraryFromSegments(itinerary, derivedCandidates);
         db.Itineraries.Add(itinerary);
         await db.SaveChangesAsync(cancellationToken);
 
-        foreach (var candidate in candidates)
+        foreach (var candidate in derivedCandidates)
         {
             db.ItinerarySegments.Add(new ItinerarySegment
             {
@@ -186,43 +209,46 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
     public async Task<ItinerarySegment> AddSegmentAsync(Guid itineraryId, Guid scheduleId, int segmentOrder, int? layoverMinutes, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var itinerary = await LoadEditableItineraryAsync(itineraryId, cancellationToken)
             ?? throw new NotFoundException($"Itinerary '{itineraryId}' not found.");
         var schedule = await LoadSegmentScheduleAsync(scheduleId, cancellationToken)
             ?? throw new NotFoundException($"Scheduled flight '{scheduleId}' not found.");
 
         var candidates = itinerary.Segments
-            .Select(s => new SegmentCandidate(s.SegmentOrder, s.LayoverMinutesAfterSegment, s.FlightSchedule))
-            .Append(new SegmentCandidate(segmentOrder, layoverMinutes, schedule))
+            .Select(s => new SegmentCandidate(
+                s.Id,
+                s.SegmentOrder >= segmentOrder ? s.SegmentOrder + 1 : s.SegmentOrder,
+                s.LayoverMinutesAfterSegment,
+                s.FlightSchedule))
+            .Append(new SegmentCandidate(null, segmentOrder, layoverMinutes, schedule))
             .ToList();
-        ValidateSegmentChain(
-            itinerary.OriginAirportId,
-            itinerary.DestinationAirportId,
-            itinerary.DepartureTime,
-            itinerary.ArrivalTime,
-            candidates,
-            enforceTimeWindow: false);
+        var derivedCandidates = ValidateAndDeriveSegmentChain(candidates);
+
+        await ParkSegmentsForOrderChangesAsync(itinerary, derivedCandidates, cancellationToken);
+        ApplyExistingSegmentCandidates(itinerary, derivedCandidates);
+        var newCandidate = derivedCandidates.First(c => c.SegmentId is null);
 
         var segment = new ItinerarySegment
         {
             ItineraryId = itineraryId,
-            FlightScheduleId = scheduleId,
-            SegmentOrder = segmentOrder,
-            LayoverMinutesAfterSegment = layoverMinutes,
+            FlightScheduleId = newCandidate.Schedule.Id,
+            SegmentOrder = newCandidate.SegmentOrder,
+            LayoverMinutesAfterSegment = newCandidate.LayoverMinutesAfterSegment,
         };
         db.ItinerarySegments.Add(segment);
-        SyncItineraryFromSegments(itinerary, candidates);
+        SyncItineraryFromSegments(itinerary, derivedCandidates);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
-        return await db.ItinerarySegments.AsNoTracking()
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.Airline)
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.OriginAirport)
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.DestinationAirport)
-            .FirstAsync(s => s.Id == segment.Id, cancellationToken);
+        return await LoadSegmentWithDetailsAsync(segment.Id, cancellationToken);
     }
 
     public async Task<ItinerarySegment?> UpdateSegmentAsync(Guid segmentId, Guid? scheduleId, int? segmentOrder, int? layoverMinutes, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var segment = await db.ItinerarySegments
             .Include(s => s.Itinerary)
                 .ThenInclude(i => i.Segments)
@@ -241,37 +267,33 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         }
 
         var nextOrder = segmentOrder ?? segment.SegmentOrder;
-        var nextLayover = layoverMinutes ?? segment.LayoverMinutesAfterSegment;
+        if (nextOrder > segment.Itinerary.Segments.Count)
+            throw new ValidationException("segmentOrder", "Segment order must be continuous starting at 1.");
 
         var candidates = segment.Itinerary.Segments
-            .Select(s => s.Id == segmentId
-                ? new SegmentCandidate(nextOrder, nextLayover, replacementSchedule ?? s.FlightSchedule)
-                : new SegmentCandidate(s.SegmentOrder, s.LayoverMinutesAfterSegment, s.FlightSchedule))
+            .Select(s => new SegmentCandidate(
+                s.Id,
+                segmentOrder is null
+                    ? s.SegmentOrder
+                    : MoveSegmentOrder(s.SegmentOrder, segment.SegmentOrder, nextOrder),
+                s.Id == segmentId ? layoverMinutes : s.LayoverMinutesAfterSegment,
+                s.Id == segmentId ? replacementSchedule ?? s.FlightSchedule : s.FlightSchedule))
             .ToList();
-        ValidateSegmentChain(
-            segment.Itinerary.OriginAirportId,
-            segment.Itinerary.DestinationAirportId,
-            segment.Itinerary.DepartureTime,
-            segment.Itinerary.ArrivalTime,
-            candidates,
-            enforceTimeWindow: false);
+        var derivedCandidates = ValidateAndDeriveSegmentChain(candidates);
 
-        if (scheduleId is not null) segment.FlightScheduleId = scheduleId.Value;
-        if (segmentOrder is not null) segment.SegmentOrder = segmentOrder.Value;
-        segment.LayoverMinutesAfterSegment = nextLayover;
-        segment.UpdatedAt = DateTime.UtcNow;
-        SyncItineraryFromSegments(segment.Itinerary, candidates);
+        await ParkSegmentsForOrderChangesAsync(segment.Itinerary, derivedCandidates, cancellationToken);
+        ApplyExistingSegmentCandidates(segment.Itinerary, derivedCandidates);
+        SyncItineraryFromSegments(segment.Itinerary, derivedCandidates);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
-        return await db.ItinerarySegments.AsNoTracking()
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.Airline)
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.OriginAirport)
-            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.DestinationAirport)
-            .FirstAsync(s => s.Id == segmentId, cancellationToken);
+        return await LoadSegmentWithDetailsAsync(segmentId, cancellationToken);
     }
 
     public async Task<bool> DeleteSegmentAsync(Guid segmentId, CancellationToken cancellationToken = default)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var segment = await db.ItinerarySegments
             .Include(s => s.Itinerary)
                 .ThenInclude(i => i.Segments)
@@ -282,19 +304,26 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
         var remainingSegments = segment.Itinerary.Segments
             .Where(s => s.Id != segmentId)
-            .Select(s => new SegmentCandidate(s.SegmentOrder, s.LayoverMinutesAfterSegment, s.FlightSchedule))
+            .OrderBy(s => s.SegmentOrder)
+            .Select((s, index) => new SegmentCandidate(s.Id, index + 1, s.LayoverMinutesAfterSegment, s.FlightSchedule))
             .ToList();
-        ValidateSegmentChain(
-            segment.Itinerary.OriginAirportId,
-            segment.Itinerary.DestinationAirportId,
-            segment.Itinerary.DepartureTime,
-            segment.Itinerary.ArrivalTime,
-            remainingSegments,
-            enforceTimeWindow: false);
-        SyncItineraryFromSegments(segment.Itinerary, remainingSegments);
+        var derivedCandidates = ValidateAndDeriveSegmentChain(remainingSegments);
+        var parked = await ParkSegmentsForOrderChangesAsync(segment.Itinerary, derivedCandidates, cancellationToken);
 
-        db.ItinerarySegments.Remove(segment);
+        if (parked)
+        {
+            db.ItinerarySegments.Remove(segment);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        ApplyExistingSegmentCandidates(segment.Itinerary, derivedCandidates);
+        SyncItineraryFromSegments(segment.Itinerary, derivedCandidates);
+
+        if (!parked)
+            db.ItinerarySegments.Remove(segment);
+
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
 
@@ -339,15 +368,70 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 s.Flight.IsActive,
                 cancellationToken);
 
-    private static void ValidateSegmentChain(
-        Guid itineraryOriginId,
-        Guid itineraryDestinationId,
-        DateTime itineraryDeparture,
-        DateTime itineraryArrival,
+    private Task<ItinerarySegment> LoadSegmentWithDetailsAsync(Guid segmentId, CancellationToken cancellationToken) =>
+        db.ItinerarySegments.AsNoTracking()
+            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.Airline)
+            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.OriginAirport)
+            .Include(s => s.FlightSchedule).ThenInclude(fs => fs.Flight).ThenInclude(f => f.DestinationAirport)
+            .FirstAsync(s => s.Id == segmentId, cancellationToken);
+
+    private async Task<bool> ParkSegmentsForOrderChangesAsync(
+        Itinerary itinerary,
         IReadOnlyCollection<SegmentCandidate> candidates,
-        bool enforceTimeWindow)
+        CancellationToken cancellationToken)
     {
-        if (candidates.Count == 0) return;
+        var finalOrders = candidates
+            .Where(c => c.SegmentId is not null)
+            .ToDictionary(c => c.SegmentId!.Value, c => c.SegmentOrder);
+        var segmentsToPark = itinerary.Segments
+            .Where(s => finalOrders.TryGetValue(s.Id, out var finalOrder) && s.SegmentOrder != finalOrder)
+            .OrderBy(s => s.SegmentOrder)
+            .ToList();
+
+        if (segmentsToPark.Count == 0) return false;
+
+        var temporaryOrder = -1;
+        foreach (var segment in segmentsToPark)
+        {
+            segment.SegmentOrder = temporaryOrder--;
+            segment.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private static void ApplyExistingSegmentCandidates(
+        Itinerary itinerary,
+        IReadOnlyCollection<SegmentCandidate> candidates)
+    {
+        var bySegmentId = candidates
+            .Where(c => c.SegmentId is not null)
+            .ToDictionary(c => c.SegmentId!.Value);
+
+        foreach (var segment in itinerary.Segments)
+        {
+            if (!bySegmentId.TryGetValue(segment.Id, out var candidate)) continue;
+
+            segment.FlightScheduleId = candidate.Schedule.Id;
+            segment.SegmentOrder = candidate.SegmentOrder;
+            segment.LayoverMinutesAfterSegment = candidate.LayoverMinutesAfterSegment;
+            segment.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
+    private static int MoveSegmentOrder(int order, int from, int to)
+    {
+        if (from == to || order == from) return to;
+        if (from < to && order > from && order <= to) return order - 1;
+        if (from > to && order >= to && order < from) return order + 1;
+        return order;
+    }
+
+    private static IReadOnlyList<SegmentCandidate> ValidateAndDeriveSegmentChain(IReadOnlyCollection<SegmentCandidate> candidates)
+    {
+        if (candidates.Count == 0)
+            throw new ValidationException("segments", "An itinerary must contain at least one segment.");
 
         if (candidates.Any(s => s.SegmentOrder < 1))
             throw new ValidationException("segmentOrder", "Segment order must be at least 1.");
@@ -362,15 +446,6 @@ public class ItineraryService(AppDbContext db) : IItineraryService
                 throw new ValidationException("segmentOrder", "Segment order must be continuous starting at 1.");
         }
 
-        if (ordered[0].Schedule.Flight.OriginAirportId != itineraryOriginId)
-            throw new ValidationException("segments", "First segment origin must match the itinerary origin.");
-
-        if (ordered[^1].Schedule.Flight.DestinationAirportId != itineraryDestinationId)
-            throw new ValidationException("segments", "Last segment destination must match the itinerary destination.");
-
-        if (enforceTimeWindow && (ordered[0].Schedule.DepartureTime < itineraryDeparture || ordered[^1].Schedule.ArrivalTime > itineraryArrival))
-            throw new ValidationException("segments", "Segment times must fit inside the itinerary time window.");
-
         for (var i = 0; i < ordered.Count - 1; i++)
         {
             var current = ordered[i];
@@ -381,14 +456,17 @@ public class ItineraryService(AppDbContext db) : IItineraryService
 
             if (next.Schedule.DepartureTime < current.Schedule.ArrivalTime)
                 throw new ValidationException("segments", "Next segment cannot depart before the previous segment arrives.");
-
-            var actualLayover = (int)Math.Round((next.Schedule.DepartureTime - current.Schedule.ArrivalTime).TotalMinutes);
-            if (current.LayoverMinutesAfterSegment is not null && current.LayoverMinutesAfterSegment != actualLayover)
-                throw new ValidationException("layoverMinutes", "Layover minutes must match the time between consecutive segments.");
         }
 
-        if (ordered[^1].LayoverMinutesAfterSegment is not null)
-            throw new ValidationException("layoverMinutes", "The last segment cannot have a layover after it.");
+        return ordered
+            .Select((candidate, index) =>
+            {
+                var layover = index < ordered.Count - 1
+                    ? Math.Max(0, (int)Math.Round((ordered[index + 1].Schedule.DepartureTime - candidate.Schedule.ArrivalTime).TotalMinutes))
+                    : (int?)null;
+                return candidate with { LayoverMinutesAfterSegment = layover };
+            })
+            .ToArray();
     }
 
     private static void SyncItineraryFromSegments(Itinerary itinerary, IReadOnlyCollection<SegmentCandidate> candidates)
@@ -396,6 +474,8 @@ public class ItineraryService(AppDbContext db) : IItineraryService
         var ordered = candidates.OrderBy(s => s.SegmentOrder).ToList();
         if (ordered.Count == 0) return;
 
+        itinerary.OriginAirportId = ordered[0].Schedule.Flight.OriginAirportId;
+        itinerary.DestinationAirportId = ordered[^1].Schedule.Flight.DestinationAirportId;
         itinerary.DepartureTime = ordered[0].Schedule.DepartureTime;
         itinerary.ArrivalTime = ordered[^1].Schedule.ArrivalTime;
         itinerary.TotalDurationMinutes = (int)Math.Round((itinerary.ArrivalTime - itinerary.DepartureTime).TotalMinutes);
@@ -414,6 +494,7 @@ public class ItineraryService(AppDbContext db) : IItineraryService
     }
 
     private sealed record SegmentCandidate(
+        Guid? SegmentId,
         int SegmentOrder,
         int? LayoverMinutesAfterSegment,
         FlightSchedule Schedule);

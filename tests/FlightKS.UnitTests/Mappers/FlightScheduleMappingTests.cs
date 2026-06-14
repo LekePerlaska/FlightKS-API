@@ -121,13 +121,14 @@ public class FlightScheduleMappingTests
     {
         var seat = E.Seat("3A", SeatClass.First, isWindow: true, isAisle: false, extraLegroom: true);
 
-        var dto = seat.ToScheduleSeatDto(price: 1200m);
+        var dto = seat.ToScheduleSeatDto(1200m, FlightSeatStatus.Available);
 
         dto.Id.Should().Be(seat.Id);
         dto.SeatNumber.Should().Be("3A");
         dto.SeatClass.Should().Be(SeatClass.First);
         dto.IsWindow.Should().BeTrue();
         dto.ExtraLegroom.Should().BeTrue();
+        dto.Status.Should().Be(FlightSeatStatus.Available);
         dto.Price.Should().Be(1200m);
     }
 

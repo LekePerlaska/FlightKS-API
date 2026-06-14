@@ -60,7 +60,14 @@ public class FlightService(AppDbContext db) : IFlightService
             .ToListAsync(cancellationToken);
 
     public async Task<(IReadOnlyList<Flight> Items, int Total)> GetAllForAdminAsync(
-        string? search, bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default)
+        string? search,
+        Guid? airlineId,
+        Guid? originAirportId,
+        Guid? destinationAirportId,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
         var q = db.Flights.IgnoreQueryFilters().AsNoTracking()
             .Include(f => f.Airline)
@@ -74,8 +81,21 @@ public class FlightService(AppDbContext db) : IFlightService
             q = q.Where(f =>
                 f.FlightNumber.ToLower().Contains(term) ||
                 f.Airline.Name.ToLower().Contains(term) ||
-                f.Airline.Code.ToLower().Contains(term));
+                f.Airline.Code.ToLower().Contains(term) ||
+                f.OriginAirport.Code.ToLower().Contains(term) ||
+                f.OriginAirport.City.ToLower().Contains(term) ||
+                f.DestinationAirport.Code.ToLower().Contains(term) ||
+                f.DestinationAirport.City.ToLower().Contains(term));
         }
+
+        if (airlineId is not null)
+            q = q.Where(f => f.AirlineId == airlineId);
+
+        if (originAirportId is not null)
+            q = q.Where(f => f.OriginAirportId == originAirportId);
+
+        if (destinationAirportId is not null)
+            q = q.Where(f => f.DestinationAirportId == destinationAirportId);
 
         if (isActive is not null)
             q = q.Where(f => f.IsActive == isActive);

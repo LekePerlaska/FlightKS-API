@@ -24,7 +24,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BookingBaggage> BookingBaggage => Set<BookingBaggage>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
-    public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<AdminLog> AdminLogs => Set<AdminLog>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AiSearchDocument> AiSearchDocuments => Set<AiSearchDocument>();
@@ -55,7 +54,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         ConfigureBookingBaggage(modelBuilder);
         ConfigureNotification(modelBuilder);
         ConfigureUploadedFile(modelBuilder);
-        ConfigureFeatureFlag(modelBuilder);
         ConfigureAdminLog(modelBuilder);
         ConfigureAuditLog(modelBuilder);
         ConfigureAiSearchDocument(modelBuilder);
@@ -446,19 +444,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(u => u.UploadedFiles)
                 .HasForeignKey(f => f.UploadedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
-        });
-
-    private static void ConfigureFeatureFlag(ModelBuilder mb) =>
-        mb.Entity<FeatureFlag>(e =>
-        {
-            e.HasKey(f => f.Id);
-            e.Property(f => f.Id).HasDefaultValueSql("gen_random_uuid()");
-            e.Property(f => f.Key).HasMaxLength(100).IsRequired();
-            e.HasIndex(f => f.Key).IsUnique();
-            e.Property(f => f.Name).HasMaxLength(200).IsRequired();
-            e.Property(f => f.Description).HasMaxLength(500);
-            e.Property(f => f.CreatedAt).HasDefaultValueSql("now()");
-            e.Property(f => f.UpdatedAt).HasDefaultValueSql("now()");
         });
 
     private static void ConfigureAdminLog(ModelBuilder mb) =>

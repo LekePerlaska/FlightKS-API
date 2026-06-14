@@ -1,21 +1,36 @@
 using FlightKS.Enums;
 using FlightKS.Exceptions;
+using FlightKS.Hubs;
 using FlightKS.Models.Entities;
 using FlightKS.Services;
 using FlightKS.Services.Interfaces;
 using FlightKS.ServiceTests.Fixtures;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 
 namespace FlightKS.ServiceTests.Services;
 
 public class BookingServiceTests(PostgresFixture fixture) : ServiceTestBase(fixture)
 {
+    private static IHubContext<SeatHub> MakeHubMock()
+    {
+        var proxy = Substitute.For<IClientProxy>();
+        proxy.SendCoreAsync(Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>())
+             .Returns(Task.CompletedTask);
+        var clients = Substitute.For<IHubClients>();
+        clients.Group(Arg.Any<string>()).Returns(proxy);
+        var hub = Substitute.For<IHubContext<SeatHub>>();
+        hub.Clients.Returns(clients);
+        return hub;
+    }
+
     private static BookingService MakeSut(FlightKS.Data.AppDbContext db)
     {
         var notifications = Substitute.For<INotificationService>();
         notifications.CreateAsync(default, default!, default!, default!)
             .ReturnsForAnyArgs(Task.FromResult(new Notification { Title = "", Message = "", Type = "" }));
-        return new BookingService(db, notifications);
+        return new BookingService(db, notifications, MakeHubMock());
     }
 
     // ── shared seed helper ─────────────────────────────────────────────────
@@ -98,6 +113,51 @@ public class BookingServiceTests(PostgresFixture fixture) : ServiceTestBase(fixt
     }
 
     [Fact]
+    public async Task CreateAsync_ReleasesSeatsFromUsersOtherPendingBookings()
+    {
+        Guid userId, itinId, flightSeatId;
+        await using (var db = CreateContext())
+        {
+            var seed = new SeedData(db);
+            var user = await seed.UserAsync($"bkuser{Guid.NewGuid():N}@test.com");
+            var origin = await seed.AirportAsync($"O{Guid.NewGuid().ToString()[..2].ToUpper()}");
+            var dest = await seed.AirportAsync($"D{Guid.NewGuid().ToString()[..2].ToUpper()}");
+            var airline = await seed.AirlineAsync($"T{Guid.NewGuid().ToString()[..1].ToUpper()}");
+            var aircraft = await seed.AircraftAsync(airline.Id);
+            var seat = await seed.SeatAsync(aircraft.Id);
+            var flight = await seed.FlightAsync(airline.Id, origin.Id, dest.Id);
+            var schedule = await seed.ScheduleAsync(flight.Id, aircraft.Id);
+            var itin = await seed.ItineraryAsync(origin.Id, dest.Id, schedule);
+
+            // An earlier, never-completed pending booking holding a reserved seat.
+            var abandoned = await seed.BookingAsync(user.Id, itin.Itinerary.Id, status: BookingStatus.Pending);
+            var passenger = await seed.PassengerAsync(abandoned.Id);
+            var flightSeat = await seed.FlightSeatAsync(seat.Id, schedule.Id, status: FlightSeatStatus.Reserved);
+            await seed.TicketAsync(abandoned.Id, passenger.Id, schedule.Id, flightSeat.Id);
+
+            userId = user.Id;
+            itinId = itin.Itinerary.Id;
+            flightSeatId = flightSeat.Id;
+        }
+
+        // Act: the user starts over, creating a brand new booking.
+        await using (var db = CreateContext())
+            await MakeSut(db).CreateAsync(userId, itinId, passengerCount: 1);
+
+        // Assert: the abandoned booking's seat is freed and that booking is expired.
+        await using (var assertDb = CreateContext())
+        {
+            var releasedSeat = await assertDb.FlightSeats.AsNoTracking().FirstAsync(fs => fs.Id == flightSeatId);
+            releasedSeat.Status.Should().Be(FlightSeatStatus.Available);
+            releasedSeat.ReservedUntil.Should().BeNull();
+
+            var expiredCount = await assertDb.Bookings.AsNoTracking()
+                .CountAsync(b => b.UserId == userId && b.Status == BookingStatus.Expired);
+            expiredCount.Should().Be(1);
+        }
+    }
+
+    [Fact]
     public async Task CreateAsync_InactiveItinerary_ThrowsNotFoundException()
     {
         var (userId, _, _, itinId, _) = await SeedItineraryAsync(isActive: false);
@@ -151,6 +211,54 @@ public class BookingServiceTests(PostgresFixture fixture) : ServiceTestBase(fixt
         await using var db2 = CreateContext();
         var result = await MakeSut(db2).GetByIdAsync(bookingId, ownerUserId: Guid.NewGuid());
         result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetAllForAdminAsync_FiltersByLatestPaymentStatusAndDate()
+    {
+        var targetDate = new DateOnly(2027, 5, 3);
+        var targetCreatedAt = new DateTime(2027, 5, 3, 12, 0, 0, DateTimeKind.Utc);
+
+        Guid expectedBookingId;
+        await using (var setupDb = CreateContext())
+        {
+            var seed = new SeedData(setupDb);
+            var user = await seed.UserAsync($"admin-bookings-{Guid.NewGuid():N}@test.com");
+            var origin = await seed.AirportAsync("AB1");
+            var dest = await seed.AirportAsync("AB2");
+            var airline = await seed.AirlineAsync("AB");
+            var aircraft = await seed.AircraftAsync(airline.Id);
+            var flight = await seed.FlightAsync(airline.Id, origin.Id, dest.Id, "AB123");
+            var schedule = await seed.ScheduleAsync(flight.Id, aircraft.Id);
+            var itinerary = await seed.ItineraryAsync(origin.Id, dest.Id, schedule);
+
+            var expected = await seed.BookingAsync(user.Id, itinerary.Itinerary.Id);
+            expected.CreatedAt = targetCreatedAt;
+            await seed.PaymentAsync(expected.Id, expected.TotalAmount, PaymentStatus.Completed);
+
+            var wrongStatus = await seed.BookingAsync(user.Id, itinerary.Itinerary.Id);
+            wrongStatus.CreatedAt = targetCreatedAt;
+            await seed.PaymentAsync(wrongStatus.Id, wrongStatus.TotalAmount, PaymentStatus.Failed);
+
+            var wrongDate = await seed.BookingAsync(user.Id, itinerary.Itinerary.Id);
+            wrongDate.CreatedAt = targetCreatedAt.AddDays(1);
+            await seed.PaymentAsync(wrongDate.Id, wrongDate.TotalAmount, PaymentStatus.Completed);
+
+            await setupDb.SaveChangesAsync();
+            expectedBookingId = expected.Id;
+        }
+
+        await using var db = CreateContext();
+        var (items, total) = await MakeSut(db).GetAllForAdminAsync(
+            search: null,
+            status: null,
+            paymentStatus: PaymentStatus.Completed,
+            createdDate: targetDate,
+            page: 1,
+            pageSize: 20);
+
+        total.Should().Be(1);
+        items.Should().ContainSingle().Which.Id.Should().Be(expectedBookingId);
     }
 
     // ── UpdateStatusAsync ──────────────────────────────────────────────────

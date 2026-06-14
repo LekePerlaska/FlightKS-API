@@ -194,6 +194,35 @@ public class FlightScheduleServiceTests(PostgresFixture fixture) : ServiceTestBa
     }
 
     [Fact]
+    public async Task GetAllForAdminAsync_FiltersByStatus()
+    {
+        await using var setupDb = CreateContext();
+        var seed = new SeedData(setupDb);
+        var airline = await seed.AirlineAsync("SF");
+        var aircraft = await seed.AircraftAsync(airline.Id);
+        var origin = await seed.AirportAsync("SFA");
+        var dest = await seed.AirportAsync("SFB");
+        var flight = await seed.FlightAsync(airline.Id, origin.Id, dest.Id, "SF100");
+        await seed.ScheduleAsync(flight.Id, aircraft.Id, status: FlightScheduleStatus.Scheduled);
+        var delayed = await seed.ScheduleAsync(
+            flight.Id,
+            aircraft.Id,
+            dep: new DateTime(2027, 6, 1, 8, 0, 0, DateTimeKind.Utc),
+            arr: new DateTime(2027, 6, 1, 10, 0, 0, DateTimeKind.Utc),
+            status: FlightScheduleStatus.Delayed);
+
+        await using var db = CreateContext();
+        var (items, total) = await MakeSut(db).GetAllForAdminAsync(
+            search: null,
+            status: FlightScheduleStatus.Delayed,
+            page: 1,
+            pageSize: 20);
+
+        total.Should().Be(1);
+        items.Should().ContainSingle().Which.Id.Should().Be(delayed.Id);
+    }
+
+    [Fact]
     public async Task UpdateAsync_NoPassengers_DoesNotCallNotifications()
     {
         var (_, aircraftId, flightId) = await SeedBaseAsync("NP", "N3P", "N4P");

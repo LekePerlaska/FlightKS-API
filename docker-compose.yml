@@ -162,6 +162,13 @@ services:
 
       # Public edge origin. Tokens are issued with iss = http://localhost/realms/flightks.
       KC_HOSTNAME: http://localhost
+      # Admin console origin. The nginx edge routes /admin/* to the frontend (the Next.js
+      # admin SPA), NOT to Keycloak, so the admin console can't live under the edge origin.
+      # Serve it on Keycloak's own published port instead: http://localhost:8080/admin
+      # (login with KC_ADMIN_USER/KC_ADMIN_PASSWORD, realm master -> flightks). This mirrors
+      # the Helm chart's KC_HOSTNAME_ADMIN (.Values.keycloak.adminUrl) and does not affect
+      # the app's issuer/frontend URL above.
+      KC_HOSTNAME_ADMIN: http://localhost:8080
       # Resolve backchannel URLs (jwks_uri, token endpoint) from the request, so the API
       # fetching discovery at http://keycloak:8080 gets reachable internal URLs while the
       # issuer/frontend URLs stay at KC_HOSTNAME above. Removes the need for host rewriting.
@@ -171,9 +178,18 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
 
+      # Custom FlightKS login theme — disable theme/template caching so edits to
+      # the mounted theme apply on container restart without rebuilding the image.
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+
     command: start --http-enabled=true --hostname-strict=false --import-realm
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # Mounted as a subdirectory so the built-in themes (keycloak, keycloak.v2,
+      # admin, base) remain intact alongside our custom one.
+      - ./keycloak/themes/flightks:/opt/keycloak/themes/flightks:ro
     depends_on:
       keycloak-db:
         condition: service_healthy

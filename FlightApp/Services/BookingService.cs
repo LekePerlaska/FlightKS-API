@@ -1,13 +1,15 @@
 using FlightKS.Data;
 using FlightKS.Enums;
 using FlightKS.Exceptions;
+using FlightKS.Hubs;
 using FlightKS.Models.Entities;
 using FlightKS.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace FlightKS.Services;
 
-public class BookingService(AppDbContext db, INotificationService notificationService) : IBookingService
+public class BookingService(AppDbContext db, INotificationService notificationService, IHubContext<SeatHub> seatHub) : IBookingService
 {
     public async Task<Booking> CreateAsync(Guid userId, Guid itineraryId, int passengerCount, SeatClass? cabinClass = null, CancellationToken cancellationToken = default)
     {
@@ -44,7 +46,51 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
         };
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(cancellationToken);
+
+        await ReleaseAbandonedReservationsAsync(userId, booking.Id, cancellationToken);
+
         return booking;
+    }
+
+    private async Task ReleaseAbandonedReservationsAsync(Guid userId, Guid exceptBookingId, CancellationToken cancellationToken)
+    {
+        var stalePendingIds = await db.Bookings
+            .Where(b => b.UserId == userId && b.Status == BookingStatus.Pending && b.Id != exceptBookingId)
+            .Select(b => b.Id)
+            .ToListAsync(cancellationToken);
+        if (stalePendingIds.Count == 0) return;
+
+        var heldTickets = await db.Tickets
+            .Include(t => t.FlightSeat)
+            .Where(t => stalePendingIds.Contains(t.BookingId)
+                && t.FlightSeat != null
+                && t.FlightSeat.Status == FlightSeatStatus.Reserved)
+            .ToListAsync(cancellationToken);
+
+        var released = new List<(Guid ScheduleId, Guid FlightSeatId)>();
+        foreach (var ticket in heldTickets)
+        {
+            ticket.FlightSeat!.Status = FlightSeatStatus.Available;
+            ticket.FlightSeat.ReservedUntil = null;
+            ticket.FlightSeat.UpdatedAt = DateTime.UtcNow;
+            released.Add((ticket.FlightSeat.FlightScheduleId, ticket.FlightSeat.Id));
+        }
+        db.Tickets.RemoveRange(heldTickets);
+
+        var staleBookings = await db.Bookings
+            .Where(b => stalePendingIds.Contains(b.Id))
+            .ToListAsync(cancellationToken);
+        foreach (var stale in staleBookings)
+        {
+            stale.Status = BookingStatus.Expired;
+            stale.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var (scheduleId, flightSeatId) in released)
+            await seatHub.Clients.Group(scheduleId.ToString())
+                .SendAsync("SeatReleased", flightSeatId, cancellationToken: cancellationToken);
     }
 
     public async Task<IEnumerable<Booking>> GetForUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
@@ -159,7 +205,13 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
     }
 
     public async Task<(IReadOnlyList<Booking> Items, int Total)> GetAllForAdminAsync(
-        string? search, BookingStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
+        string? search,
+        BookingStatus? status,
+        PaymentStatus? paymentStatus,
+        DateOnly? createdDate,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
         var q = LoadAdmin(asNoTracking: true);
 
@@ -174,6 +226,20 @@ public class BookingService(AppDbContext db, INotificationService notificationSe
 
         if (status is not null)
             q = q.Where(b => b.Status == status);
+
+        if (paymentStatus is not null)
+            q = q.Where(b =>
+                b.Payments
+                    .OrderByDescending(p => p.CreatedAt)
+                    .Select(p => (PaymentStatus?)p.PaymentStatus)
+                    .FirstOrDefault() == paymentStatus);
+
+        if (createdDate is not null)
+        {
+            var start = DateTime.SpecifyKind(createdDate.Value.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+            var end = start.AddDays(1);
+            q = q.Where(b => b.CreatedAt >= start && b.CreatedAt < end);
+        }
 
         var total = await q.CountAsync(cancellationToken);
         var items = await q

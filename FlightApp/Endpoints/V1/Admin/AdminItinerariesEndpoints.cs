@@ -36,11 +36,13 @@ public static class AdminItinerariesEndpoints
     private static async Task<IResult> GetAll(
         IItineraryService itineraries,
         CancellationToken cancellationToken,
+        string? search = null,
+        int? stopsCount = null,
         bool? isActive = null,
         int page = 1,
         int pageSize = 20)
     {
-        var (items, total) = await itineraries.GetAllForAdminAsync(isActive, page, pageSize, cancellationToken);
+        var (items, total) = await itineraries.GetAllForAdminAsync(search, stopsCount, isActive, page, pageSize, cancellationToken);
         return TypedResults.Ok(new PagedResult<ItinerarySearchResultDto>(items.Select(i => i.ToSearchResult()).ToList(), total, page, pageSize));
     }
 

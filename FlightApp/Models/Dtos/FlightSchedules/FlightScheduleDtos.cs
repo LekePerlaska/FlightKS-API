@@ -97,4 +97,5 @@ public record ScheduleSeatDto(
     bool IsWindow,
     bool IsAisle,
     bool ExtraLegroom,
+    FlightSeatStatus Status,
     decimal Price);

@@ -29,10 +29,13 @@ public static class AdminBookingsEndpoints
         CancellationToken cancellationToken,
         string? search = null,
         BookingStatus? status = null,
+        PaymentStatus? paymentStatus = null,
+        DateOnly? createdDate = null,
         int page = 1,
         int pageSize = 20)
     {
-        var (items, total) = await bookings.GetAllForAdminAsync(search, status, page, pageSize, cancellationToken);
+        var (items, total) = await bookings.GetAllForAdminAsync(
+            search, status, paymentStatus, createdDate, page, pageSize, cancellationToken);
         return TypedResults.Ok(new PagedResult<AdminBookingListItemDto>(items.Select(b => b.ToAdminListItem()).ToList(), total, page, pageSize));
     }
 

@@ -59,6 +59,11 @@ public class FlightScheduleService(AppDbContext db, INotificationService notific
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, FlightSeatStatus>> GetSeatStatusesAsync(Guid scheduleId, CancellationToken cancellationToken = default) =>
+        await db.FlightSeats.AsNoTracking()
+            .Where(fs => fs.FlightScheduleId == scheduleId)
+            .ToDictionaryAsync(fs => fs.SeatId, fs => fs.Status, cancellationToken);
+
     public async Task<(IReadOnlyList<FlightSchedule> Items, int Total)> GetAllForAdminAsync(
         string? search, FlightScheduleStatus? status, int page, int pageSize, CancellationToken cancellationToken = default)
     {

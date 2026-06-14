@@ -24,7 +24,12 @@ public interface IItineraryService
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<Itinerary> Items, int Total)> GetAllForAdminAsync(
-        bool? isActive, int page, int pageSize, CancellationToken cancellationToken = default);
+        string? search,
+        int? stopsCount,
+        bool? isActive,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
     Task<Itinerary> CreateFromSchedulesAsync(List<Guid> flightScheduleIds, CancellationToken cancellationToken = default);
     Task<Itinerary?> SetActiveAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
     Task<bool> DeleteForAdminAsync(Guid id, CancellationToken cancellationToken = default);

@@ -86,7 +86,8 @@ public class SeatReservationServiceTests(PostgresFixture fixture) : ServiceTestB
             .ReserveAsync(s.BookingId, s.UserId, s.PassengerId, s.SeatId, s.SegmentId);
 
         result.FlightSeat.Status.Should().Be(FlightSeatStatus.Reserved);
-        result.FlightSeat.ReservedUntil.Should().NotBeNull();
+        // Seats are held until payment is resolved, with no time-based expiry.
+        result.FlightSeat.ReservedUntil.Should().BeNull();
         result.Ticket.BookingId.Should().Be(s.BookingId);
         result.Ticket.PassengerId.Should().Be(s.PassengerId);
         result.Ticket.FlightSeatId.Should().Be(result.FlightSeat.Id);
@@ -122,18 +123,17 @@ public class SeatReservationServiceTests(PostgresFixture fixture) : ServiceTestB
     }
 
     [Fact]
-    public async Task ReserveAsync_CustomHoldDuration_SetsReservedUntilCorrectly()
+    public async Task ReserveAsync_DoesNotSetTimeBasedHold()
     {
         var s = await SeedScenarioAsync();
-        var holdFor = TimeSpan.FromHours(2);
 
-        var before = DateTime.UtcNow;
         await using var db = CreateContext();
-        var result = await MakeSut(db).ReserveAsync(s.BookingId, s.UserId, s.PassengerId, s.SeatId, s.SegmentId, holdFor);
-        var after = DateTime.UtcNow;
+        // Even when a holdFor is supplied, reservations no longer expire on a timer —
+        // they are held until payment is confirmed or the seat is released.
+        var result = await MakeSut(db).ReserveAsync(
+            s.BookingId, s.UserId, s.PassengerId, s.SeatId, s.SegmentId, TimeSpan.FromHours(2));
 
-        result.FlightSeat.ReservedUntil.Should().BeCloseTo(before + holdFor, TimeSpan.FromSeconds(5));
-        result.FlightSeat.ReservedUntil.Should().BeBefore(after + holdFor + TimeSpan.FromSeconds(1));
+        result.FlightSeat.ReservedUntil.Should().BeNull();
     }
 
     [Fact]

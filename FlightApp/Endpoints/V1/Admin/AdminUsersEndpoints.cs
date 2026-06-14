@@ -31,6 +31,7 @@ public static class AdminUsersEndpoints
         IKeycloakService keycloak,
         string? search,
         string? status,
+        string? role,
         int page = 1,
         int pageSize = 20,
         CancellationToken cancellationToken = default)
@@ -41,6 +42,9 @@ public static class AdminUsersEndpoints
             "inactive" => false,
             _ => null,
         };
+
+        if (!string.IsNullOrWhiteSpace(role))
+            return await GetAllByRole(users, keycloak, search, isActive, role, page, pageSize, cancellationToken);
 
         var (items, total) = await users.GetAllForAdminAsync(search, isActive, page, pageSize, cancellationToken);
 
@@ -55,6 +59,42 @@ public static class AdminUsersEndpoints
             u.IsActive,
             u.CreatedAt,
             allRoles[i])).ToList();
+
+        return TypedResults.Ok(new PagedResult<AdminUserListItemDto>(dtos, total, page, pageSize));
+    }
+
+    private static async Task<IResult> GetAllByRole(
+        IUserService users,
+        IKeycloakService keycloak,
+        string? search,
+        bool? isActive,
+        string role,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var candidates = await users.GetAllForAdminAsync(search, isActive, cancellationToken);
+        var rolesTasks = candidates.Select(u => keycloak.GetUserRolesAsync(u.KeycloakUserId, cancellationToken));
+        var allRoles = await Task.WhenAll(rolesTasks);
+
+        var filtered = candidates
+            .Select((user, index) => new { User = user, Roles = allRoles[index] })
+            .Where(x => x.Roles.Any(r => string.Equals(r, role.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var total = filtered.Count;
+        var dtos = filtered
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new AdminUserListItemDto(
+                x.User.Id,
+                x.User.FullName,
+                x.User.Email,
+                x.User.PhoneNumber,
+                x.User.IsActive,
+                x.User.CreatedAt,
+                x.Roles))
+            .ToList();
 
         return TypedResults.Ok(new PagedResult<AdminUserListItemDto>(dtos, total, page, pageSize));
     }

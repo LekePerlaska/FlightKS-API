@@ -16,6 +16,12 @@ public interface IBookingService
     Task<BookingPriceSummary?> GetPriceSummaryAsync(Guid bookingId, Guid ownerUserId, CancellationToken cancellationToken = default);
     Task<bool> CancelAsync(Guid bookingId, Guid ownerUserId, CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<Booking> Items, int Total)> GetAllForAdminAsync(
-        string? search, BookingStatus? status, int page, int pageSize, CancellationToken cancellationToken = default);
+        string? search,
+        BookingStatus? status,
+        PaymentStatus? paymentStatus,
+        DateOnly? createdDate,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
     Task<Booking?> GetDetailForAdminAsync(Guid bookingId, CancellationToken cancellationToken = default);
 }

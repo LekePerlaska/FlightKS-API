@@ -26,11 +26,15 @@ public static class AdminFlightsEndpoints
         IFlightService flights,
         CancellationToken cancellationToken,
         string? search = null,
+        Guid? airlineId = null,
+        Guid? originAirportId = null,
+        Guid? destinationAirportId = null,
         bool? isActive = null,
         int page = 1,
         int pageSize = 20)
     {
-        var (items, total) = await flights.GetAllForAdminAsync(search, isActive, page, pageSize, cancellationToken);
+        var (items, total) = await flights.GetAllForAdminAsync(
+            search, airlineId, originAirportId, destinationAirportId, isActive, page, pageSize, cancellationToken);
         return TypedResults.Ok(new PagedResult<FlightAdminListItemDto>(items.Select(f => f.ToAdminListItem()).ToList(), total, page, pageSize));
     }
 

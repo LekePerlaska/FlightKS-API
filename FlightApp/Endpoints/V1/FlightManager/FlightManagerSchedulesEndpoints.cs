@@ -16,9 +16,13 @@ public static class FlightManagerSchedulesEndpoints
     {
         var group = app.MapGroup("/flight-manager/flight-schedules")
             .WithTags("FlightManagerSchedules")
-            .RequireAuthorization(Policies.FlightManager);
+            .RequireAuthorization(Policies.FlightManager)
+            // Resolve the current user for EVERY endpoint in this group. Several of
+            // them (passengers, flight-seats, patch, notify, export) call
+            // CurrentUserId(); without this filter that throws a NullReferenceException.
+            .RequireCurrentUser();
 
-        group.MapGet("/", GetAll).WithName("FlightManagerGetSchedules").AddEndpointFilter<RequireCurrentUserFilter>();
+        group.MapGet("/", GetAll).WithName("FlightManagerGetSchedules");
         group.MapPatch("/{scheduleId:guid}", Patch).WithName("FlightManagerPatchSchedule").WithValidation<FlightScheduleStatusUpdateDto>();
         group.MapGet("/{scheduleId:guid}/passengers", Passengers).WithName("FlightManagerSchedulePassengers");
         group.MapGet("/{scheduleId:guid}/flight-seats", Seats).WithName("FlightManagerScheduleSeats");
