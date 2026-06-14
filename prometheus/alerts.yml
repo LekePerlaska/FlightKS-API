@@ -1,0 +1,40 @@
+groups:
+  - name: flightks-api
+    rules:
+      - alert: FlightKsApiDown
+        expr: up{job="flightks-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: flightks-api
+        annotations:
+          summary: FlightKS API is down
+          description: Prometheus cannot scrape the FlightKS API /metrics endpoint.
+
+      - alert: FlightKsApiHigh5xxErrorRate
+        expr: |
+          sum(rate(http_requests_received_total{job="flightks-api",code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_received_total{job="flightks-api"}[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: flightks-api
+        annotations:
+          summary: FlightKS API 5xx error rate is high
+          description: More than 5% of API requests have returned 5xx responses for 5 minutes.
+
+      - alert: FlightKsApiHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="flightks-api"}[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: flightks-api
+        annotations:
+          summary: FlightKS API latency is high
+          description: The p95 API request latency has been above 1 second for 5 minutes.

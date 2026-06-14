@@ -1,0 +1,49 @@
+{{/*
+Non-sensitive application configuration for the backend, consumed via envFrom.
+Keys use ASP.NET Core's "__" hierarchy convention (Section__Key) so they bind to
+the same options the app reads from appsettings.json. Sensitive values
+(passwords, the admin client secret, the assembled connection string) are NOT
+here — see secret.yaml and backend-deployment.yaml.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "flightks.configName" . }}
+  namespace: {{ include "flightks.namespace" . }}
+  labels:
+    {{- include "flightks.labels" . | nindent 4 }}
+data:
+  # ASP.NET Core host
+  ASPNETCORE_ENVIRONMENT: {{ .Values.config.aspnetcoreEnvironment | quote }}
+  ASPNETCORE_URLS: "http://+:{{ .Values.backend.port }}"
+  ASPNETCORE_HTTP_PORTS: {{ .Values.backend.port | quote }}
+
+  {{- if .Values.config.lokiUri }}
+  # Serilog → Loki (only set when a Loki endpoint is provided).
+  Loki__Uri: {{ .Values.config.lokiUri | quote }}
+  {{- end }}
+
+  # --- Keycloak / OIDC ---
+  # Public issuer the browser-issued tokens carry and the API validates against.
+  Keycloak__Authority: "{{ include "flightks.publicOrigin" . }}/realms/{{ .Values.keycloak.realm }}"
+  # Internal discovery/JWKS — reachable over cluster DNS (no edge round-trip).
+  Keycloak__MetadataAddress: "{{ include "flightks.keycloak.internalRealmUrl" . }}/.well-known/openid-configuration"
+  # Backchannel base for the admin token / logout calls (API → Keycloak direct).
+  Keycloak__InternalAuthority: "{{ include "flightks.keycloak.internalRealmUrl" . }}"
+  Keycloak__AdminApiBaseUrl: "http://{{ include "flightks.keycloak.fullname" . }}:{{ .Values.keycloak.port }}/admin/realms/{{ .Values.keycloak.realm }}"
+  Keycloak__RequireHttpsMetadata: {{ .Values.config.keycloak.requireHttpsMetadata | quote }}
+  Keycloak__Audience: {{ .Values.config.keycloak.audience | quote }}
+  Keycloak__AdminClientId: {{ .Values.config.keycloak.adminClientId | quote }}
+  Keycloak__FrontendClientId: {{ .Values.config.keycloak.frontendClientId | quote }}
+
+  # --- CORS --- single public origin served through the ingress.
+  Cors__AllowedOrigins__0: {{ include "flightks.publicOrigin" . | quote }}
+
+  # --- Rate limiting --- (Redis connection string is assembled in the deployment)
+  RateLimiting__Store: {{ .Values.config.rateLimiting.store | quote }}
+
+
+  # --- Forwarded headers --- trust the ingress controller on the pod network.
+  {{- range $i, $cidr := .Values.config.forwardedHeaders.knownNetworks }}
+  ForwardedHeaders__KnownNetworks__{{ $i }}: {{ $cidr | quote }}
+  {{- end }}

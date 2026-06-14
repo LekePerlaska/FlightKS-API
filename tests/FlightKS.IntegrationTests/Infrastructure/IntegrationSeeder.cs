@@ -32,7 +32,8 @@ internal sealed class IntegrationSeeder(AppDbContext db)
     {
         var a = new Aircraft
         {
-            AirlineId = airlineId, Model = model,
+            AirlineId = airlineId,
+            Model = model,
             RegistrationNumber = $"TC-{Guid.NewGuid().ToString()[..4].ToUpper()}",
             TotalSeats = 180
         };
@@ -47,9 +48,12 @@ internal sealed class IntegrationSeeder(AppDbContext db)
     {
         var f = new Flight
         {
-            AirlineId = airlineId, FlightNumber = number,
-            OriginAirportId = originId, DestinationAirportId = destId,
-            BasePrice = basePrice, DurationMinutes = 120
+            AirlineId = airlineId,
+            FlightNumber = number,
+            OriginAirportId = originId,
+            DestinationAirportId = destId,
+            BasePrice = basePrice,
+            DurationMinutes = 120
         };
         db.Flights.Add(f);
         await db.SaveChangesAsync();
@@ -64,9 +68,12 @@ internal sealed class IntegrationSeeder(AppDbContext db)
         var a = arr ?? d.AddHours(2);
         var s = new FlightSchedule
         {
-            FlightId = flightId, AircraftId = aircraftId,
-            DepartureTime = d, ArrivalTime = a,
-            CurrentPrice = price, AvailableSeats = 150,
+            FlightId = flightId,
+            AircraftId = aircraftId,
+            DepartureTime = d,
+            ArrivalTime = a,
+            CurrentPrice = price,
+            AvailableSeats = 150,
             Status = FlightScheduleStatus.Scheduled
         };
         db.FlightSchedules.Add(s);
@@ -79,10 +86,14 @@ internal sealed class IntegrationSeeder(AppDbContext db)
     {
         var itin = new Itinerary
         {
-            OriginAirportId = originId, DestinationAirportId = destId,
-            DepartureTime = schedule.DepartureTime, ArrivalTime = schedule.ArrivalTime,
+            OriginAirportId = originId,
+            DestinationAirportId = destId,
+            DepartureTime = schedule.DepartureTime,
+            ArrivalTime = schedule.ArrivalTime,
             TotalDurationMinutes = (int)(schedule.ArrivalTime - schedule.DepartureTime).TotalMinutes,
-            TotalPrice = totalPrice, StopsCount = 0, IsActive = true
+            TotalPrice = totalPrice,
+            StopsCount = 0,
+            IsActive = true
         };
         db.Itineraries.Add(itin);
         await db.SaveChangesAsync();
