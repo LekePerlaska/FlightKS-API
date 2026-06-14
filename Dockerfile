@@ -12,6 +12,7 @@ ENV ASPNETCORE_URLS=http://+:5194 \
     ASPNETCORE_HTTP_PORTS=5194
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends curl \
     && groupadd --system flightks \
     && useradd --system --gid flightks --home-dir /app --shell /usr/sbin/nologin flightks \
