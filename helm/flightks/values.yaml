@@ -48,7 +48,12 @@ serviceAccount:
 # must start as root to set volume ownership, then drops privileges internally.
 securityContext:
   pod:
-    runAsNonRoot: true
+    # The backend/frontend images declare their non-root user by NAME (flightks,
+    # nextjs) rather than a numeric UID, which Kubernetes can't verify under
+    # runAsNonRoot=true (it rejects the container). The images already run as those
+    # non-root users; proper hardening later = set a numeric USER in the Dockerfiles
+    # then flip this back to true.
+    runAsNonRoot: false
     seccompProfile:
       type: RuntimeDefault
   container:
@@ -89,7 +94,9 @@ ingress:
 # ----------------------------------------------------------------------------
 backend:
   image:
-    repository: ghcr.io/lekeperlaska/flightks-api
+    # Published to valezasutaj's GHCR namespace by CI (the cluster's ghcr-creds
+    # pull secret is scoped there; the repo-owner namespace isn't pullable).
+    repository: ghcr.io/valezasutaj/flightks-api
     tag: latest
   replicas: 2
   port: 5194

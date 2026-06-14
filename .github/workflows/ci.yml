@@ -65,15 +65,20 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # The cluster's image pull secret (ghcr-creds) is scoped to valezasutaj's
+      # namespace, so publish the backend there — same place the frontend image
+      # lives — instead of the repo-owner namespace the cluster can't pull from.
       - name: Set image name
         id: image
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: echo "image=ghcr.io/valezasutaj/flightks-api" >> "$GITHUB_OUTPUT"
 
+      # Authenticate as valezasutaj; the auto GITHUB_TOKEN cannot write to another
+      # account's packages. GHCR_PAT is a classic PAT with write:packages.
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: valezasutaj
+          password: ${{ secrets.GHCR_PAT }}
 
       - uses: docker/metadata-action@v5
         id: meta
@@ -137,13 +142,15 @@ jobs:
           echo "$KUBE_CONFIG_B64" | base64 -d > "$RUNNER_TEMP/kubeconfig"
           export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
           helm upgrade --install flightks ./helm/flightks -n project-09 \
-            --reuse-values \
+            --reset-then-reuse-values \
             --set publicScheme=https \
             --set ingress.tls.enabled=true \
             --set ingress.tls.secretName=flightks-tls \
             --set ingress.annotations."cert-manager\.io/issuer"=letsencrypt \
+            --set backend.image.repository=ghcr.io/valezasutaj/flightks-api \
             --set backend.image.tag=${{ github.sha }} \
-            --wait --timeout 5m
+            --set frontend.image.tag=latest \
+            --wait --timeout 8m
           rm -f "$RUNNER_TEMP/kubeconfig"
 
   notify:
