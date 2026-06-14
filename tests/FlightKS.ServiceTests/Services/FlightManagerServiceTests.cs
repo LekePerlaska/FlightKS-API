@@ -47,7 +47,7 @@ public class FlightManagerServiceTests(PostgresFixture fixture) : ServiceTestBas
         var schedule = await seed.ScheduleAsync(flight.Id, aircraft.Id);
         var itinResult = await seed.ItineraryAsync(origin.Id, dest.Id, schedule);
         var user = await seed.UserAsync("fm@test.com");
-        var booking = await seed.BookingAsync(user.Id, itinResult.Itinerary.Id);
+        var booking = await seed.BookingAsync(user.Id, itinResult.Itinerary.Id, status: BookingStatus.Confirmed);
         var passenger = await seed.PassengerAsync(booking.Id);
         var fs = await seed.FlightSeatAsync(seat.Id, schedule.Id, FlightSeatStatus.Booked);
         var ticket = await seed.TicketAsync(booking.Id, passenger.Id, schedule.Id, fs.Id);
@@ -95,7 +95,7 @@ public class FlightManagerServiceTests(PostgresFixture fixture) : ServiceTestBas
         var schedule = await seed.ScheduleAsync(flight.Id, aircraft.Id);
         var itinResult = await seed.ItineraryAsync(origin.Id, dest.Id, schedule);
         var user = await seed.UserAsync("cx@test.com");
-        var booking = await seed.BookingAsync(user.Id, itinResult.Itinerary.Id);
+        var booking = await seed.BookingAsync(user.Id, itinResult.Itinerary.Id, status: BookingStatus.Confirmed);
         var passenger = await seed.PassengerAsync(booking.Id);
         var ticket = await seed.TicketAsync(booking.Id, passenger.Id, schedule.Id);
 

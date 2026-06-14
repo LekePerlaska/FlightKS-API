@@ -23,10 +23,19 @@ public static class FlightManagerSchedulesEndpoints
         group.MapGet("/{scheduleId:guid}/passengers", Passengers).WithName("FlightManagerSchedulePassengers");
         group.MapGet("/{scheduleId:guid}/flight-seats", Seats).WithName("FlightManagerScheduleSeats");
         group.MapPatch("/{scheduleId:guid}/flight-seats/{seatId:guid}", SetSeatStatus).WithName("FlightManagerSetSeatStatus").WithValidation<FlightManagerSeatStatusUpdateDto>();
-        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers").WithValidation<NotifyPassengersDto>();
+        group.MapPost("/{scheduleId:guid}/notifications", Notify).WithName("FlightManagerNotifyPassengers").WithValidation<NotifyPassengersDto>().RequireRateLimiting(RateLimitPartitioning.SensitiveWritesPolicy);
         group.MapGet("/{scheduleId:guid}/manifest/export", ExportManifest).WithName("FlightManagerExportManifest");
 
         return app;
+    }
+
+    // Returns null when the FlightManager has access; an IResult error otherwise.
+    private static async Task<IResult?> VerifyAccessAsync(
+        Guid scheduleId, HttpContext ctx,
+        IFlightScheduleService schedules, CancellationToken ct)
+    {
+        var hasAccess = await schedules.BelongsToFlightManagerAsync(scheduleId, ctx.CurrentUserId(), ct);
+        return hasAccess ? null : TypedResults.NotFound();
     }
 
     private static async Task<IResult> GetAll(HttpContext httpContext, IFlightScheduleService schedules, CancellationToken cancellationToken)
@@ -35,40 +44,46 @@ public static class FlightManagerSchedulesEndpoints
         return TypedResults.Ok(list.Select(s => s.ToManagerListItem()));
     }
 
-    private static async Task<IResult> Patch(Guid scheduleId, FlightScheduleStatusUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    private static async Task<IResult> Patch(Guid scheduleId, FlightScheduleStatusUpdateDto dto, HttpContext httpContext, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var updated = await schedules.UpdateAsync(
             scheduleId, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime, null, null, null, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToDetail());
     }
 
-    private static async Task<IResult> Passengers(Guid scheduleId, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    private static async Task<IResult> Passengers(Guid scheduleId, HttpContext httpContext, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var manifest = await schedules.GetManifestAsync(scheduleId, cancellationToken);
         return TypedResults.Ok(manifest.Select(ToPassengerDto));
     }
 
-    private static async Task<IResult> Seats(Guid scheduleId, IFlightManagerService flightManager, CancellationToken cancellationToken)
+    private static async Task<IResult> Seats(Guid scheduleId, HttpContext httpContext, IFlightScheduleService schedules, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var seats = await flightManager.GetSeatsAsync(scheduleId, cancellationToken);
         return TypedResults.Ok(seats);
     }
 
-    private static async Task<IResult> SetSeatStatus(Guid scheduleId, Guid seatId, FlightManagerSeatStatusUpdateDto dto, IFlightManagerService flightManager, CancellationToken cancellationToken)
+    private static async Task<IResult> SetSeatStatus(Guid scheduleId, Guid seatId, FlightManagerSeatStatusUpdateDto dto, HttpContext httpContext, IFlightScheduleService schedules, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var updated = await flightManager.SetSeatStatusAsync(scheduleId, seatId, dto.Status, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated);
     }
 
-    private static async Task<IResult> Notify(Guid scheduleId, NotifyPassengersDto dto, IFlightManagerService flightManager, CancellationToken cancellationToken)
+    private static async Task<IResult> Notify(Guid scheduleId, NotifyPassengersDto dto, HttpContext httpContext, IFlightScheduleService schedules, IFlightManagerService flightManager, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var title = string.IsNullOrWhiteSpace(dto.Title) ? "Flight update" : dto.Title.Trim();
         var notified = await flightManager.NotifySchedulePassengersAsync(scheduleId, title, dto.Message.Trim(), cancellationToken);
         return notified is null ? TypedResults.NotFound() : TypedResults.Ok(new { notified });
     }
 
-    private static async Task<IResult> ExportManifest(Guid scheduleId, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    private static async Task<IResult> ExportManifest(Guid scheduleId, HttpContext httpContext, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
+        if (await VerifyAccessAsync(scheduleId, httpContext, schedules, cancellationToken) is { } err) return err;
         var manifest = (await schedules.GetManifestAsync(scheduleId, cancellationToken)).ToList();
 
         var sb = new StringBuilder();

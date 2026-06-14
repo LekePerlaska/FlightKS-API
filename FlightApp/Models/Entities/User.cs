@@ -15,6 +15,10 @@ public class User
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DeletedAt { get; set; }
 
+    // Populated for FlightManager role users; null for regular Users and Admins.
+    public Guid? AirlineId { get; set; }
+    public Airline? Airline { get; set; }
+
     public ICollection<Booking> Bookings { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<UploadedFile> UploadedFiles { get; set; } = [];

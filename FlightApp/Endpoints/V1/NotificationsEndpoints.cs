@@ -13,7 +13,7 @@ public static class NotificationsEndpoints
     public static IEndpointRouteBuilder MapNotificationsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/notifications").WithTags("Notifications")
-            .RequireAuthorization()
+            .RequireAuthorization(Policies.User)
             .RequireCurrentUser();
 
         group.MapGet("/", GetAll).WithName("GetNotifications");

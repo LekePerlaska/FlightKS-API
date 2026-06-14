@@ -43,19 +43,24 @@ public class TicketService(AppDbContext db, INotificationService notificationSer
         if (ticket is null) return null;
 
         var oldStatus = ticket.TicketStatus;
+
+        if (oldStatus is TicketStatus.Cancelled or TicketStatus.Refunded)
+            throw new FlightKS.Exceptions.BusinessRuleException("Cannot change the status of a cancelled or refunded ticket.");
+
         ticket.TicketStatus = status;
         ticket.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
 
         if (status != oldStatus && status is TicketStatus.Cancelled or TicketStatus.Refunded)
         {
-            var flightNumber = ticket.FlightSchedule.Flight.FlightNumber;
-            var origin = ticket.FlightSchedule.Flight.OriginAirport.Code;
-            var destination = ticket.FlightSchedule.Flight.DestinationAirport.Code;
+            // FlightSchedule may be null if it was soft-deleted; fall back to a generic message.
+            var flightInfo = ticket.FlightSchedule?.Flight is { } f
+                ? $"flight {f.FlightNumber} ({f.OriginAirport?.Code} → {f.DestinationAirport?.Code})"
+                : "your flight";
 
             await notificationService.CreateAsync(ticket.Booking.UserId,
                 "Ticket Cancelled",
-                $"Your ticket for flight {flightNumber} ({origin} → {destination}) has been cancelled.",
+                $"Your ticket for {flightInfo} has been cancelled.",
                 "ticket_cancelled",
                 relatedEntityName: "Ticket", relatedEntityId: ticket.Id,
                 cancellationToken: cancellationToken);

@@ -18,6 +18,7 @@ public static class AdminUsersEndpoints
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetUserById");
         group.MapPut("/{id:guid}", Update).WithName("AdminUpdateUser").WithValidation<AdminUserUpdateDto>();
         group.MapPatch("/{id:guid}/toggle-status", ToggleStatus).WithName("AdminToggleUserStatus");
+        group.MapPatch("/{id:guid}/airline", SetAirline).WithName("AdminSetUserAirline").WithValidation<SetUserAirlineDto>();
         group.MapGet("/{id:guid}/roles", GetUserRoles).WithName("AdminGetUserRoles");
         group.MapPut("/{id:guid}/roles", AssignRoles).WithName("AdminAssignUserRoles").WithValidation<AssignRolesDto>();
         rolesGroup.MapGet("/", GetRealmRoles).WithName("AdminGetRealmRoles");
@@ -101,7 +102,8 @@ public static class AdminUsersEndpoints
             user.IsActive,
             user.CreatedAt,
             user.UpdatedAt,
-            roles));
+            roles,
+            user.AirlineId));
     }
 
     private static async Task<IResult> Update(
@@ -171,6 +173,16 @@ public static class AdminUsersEndpoints
         await keycloak.AssignUserRolesAsync(user.KeycloakUserId, dto.Roles, cancellationToken);
         var roles = await keycloak.GetUserRolesAsync(user.KeycloakUserId, cancellationToken);
         return TypedResults.Ok(roles);
+    }
+
+    private static async Task<IResult> SetAirline(
+        Guid id,
+        SetUserAirlineDto dto,
+        IUserService users,
+        CancellationToken cancellationToken)
+    {
+        var updated = await users.SetAirlineAsync(id, dto.AirlineId, cancellationToken);
+        return updated is null ? TypedResults.NotFound() : TypedResults.Ok(new { airlineId = updated.AirlineId });
     }
 
     private static async Task<IResult> GetRealmRoles(

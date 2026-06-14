@@ -177,15 +177,15 @@ public class FlightScheduleServiceTests(PostgresFixture fixture) : ServiceTestBa
         }
 
         var notifications = Substitute.For<INotificationService>();
-        notifications.CreateAsync(default, default!, default!, default!)
-            .ReturnsForAnyArgs(Task.FromResult(new Notification { Title = "", Message = "", Type = "" }));
+        notifications.CreateBulkAsync(default!, default!, default!, default!)
+            .ReturnsForAnyArgs(Task.CompletedTask);
 
         await using var db2 = CreateContext();
         await new FlightScheduleService(db2, notifications)
             .UpdateAsync(scheduleId, FlightScheduleStatus.Delayed, null, "Weather", null, null, null, null);
 
-        await notifications.Received(1).CreateAsync(
-            Arg.Is(userId),
+        await notifications.Received(1).CreateBulkAsync(
+            Arg.Is<IReadOnlyList<Guid>>(ids => ids.Contains(userId)),
             Arg.Is<string>(t => t == "Flight Delayed"),
             Arg.Any<string>(),
             Arg.Is<string>(t => t == "flight_delayed"),
@@ -213,8 +213,8 @@ public class FlightScheduleServiceTests(PostgresFixture fixture) : ServiceTestBa
         await new FlightScheduleService(db2, notifications)
             .UpdateAsync(scheduleId, FlightScheduleStatus.Cancelled, null, null, null, null, null, null);
 
-        await notifications.DidNotReceive().CreateAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+        await notifications.DidNotReceive().CreateBulkAsync(
+            Arg.Any<IReadOnlyList<Guid>>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
     }

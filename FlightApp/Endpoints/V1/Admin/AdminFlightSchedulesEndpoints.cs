@@ -18,7 +18,7 @@ public static class AdminFlightSchedulesEndpoints
         group.MapGet("/{id:guid}", GetById).WithName("AdminGetFlightScheduleById");
         group.MapPost("/", Create).WithName("AdminCreateFlightSchedule").WithValidation<FlightScheduleCreateDto>();
         group.MapPut("/{id:guid}", Update).WithName("AdminUpdateFlightSchedule").WithValidation<FlightScheduleUpdateDto>();
-        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateFlightScheduleStatus").WithValidation<FlightScheduleUpdateDto>();
+        group.MapPatch("/{id:guid}", UpdateStatus).WithName("AdminUpdateFlightScheduleStatus").WithValidation<FlightScheduleStatusUpdateDto>();
         group.MapDelete("/{id:guid}", Delete).WithName("AdminDeleteFlightSchedule");
         group.MapGet("/{id:guid}/seats", GetSeats).WithName("AdminGetFlightScheduleSeats");
 
@@ -59,11 +59,11 @@ public static class AdminFlightSchedulesEndpoints
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
-    private static async Task<IResult> UpdateStatus(Guid id, FlightScheduleUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdateStatus(Guid id, FlightScheduleStatusUpdateDto dto, IFlightScheduleService schedules, CancellationToken cancellationToken)
     {
         var updated = await schedules.UpdateAsync(
             id, dto.Status, dto.Gate, dto.DelayReason, dto.DepartureTime, dto.ArrivalTime,
-            dto.CurrentPrice, dto.AvailableSeats, ToPriceMap(dto.ClassPrices), cancellationToken);
+            currentPrice: null, availableSeats: null, classPrices: null, cancellationToken);
         return updated is null ? TypedResults.NotFound() : TypedResults.Ok(updated.ToAdminListItem());
     }
 
