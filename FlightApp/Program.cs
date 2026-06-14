@@ -193,7 +193,30 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IKeycloakService, KeycloakService>();
-builder.Services.AddSignalR();
+var signalrRedis = builder.Configuration.GetValue<string>("SignalR:RedisConnectionString");
+var signalrBuilder = builder.Services.AddSignalR();
+if (!string.IsNullOrWhiteSpace(signalrRedis))
+{
+    Log.Information("SignalR: Redis backplane at {ConnectionString}", signalrRedis);
+    signalrBuilder.AddStackExchangeRedis(signalrRedis);
+}
+else
+{
+    Log.Information("SignalR: In-memory (single-instance). Set SignalR:RedisConnectionString for multi-instance.");
+}
+
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+var emailHost = builder.Configuration.GetValue<string>($"{EmailOptions.SectionName}:Host");
+if (!string.IsNullOrWhiteSpace(emailHost))
+{
+    Log.Information("Email: SMTP at {Host}", emailHost);
+    builder.Services.AddSingleton<IEmailSender, EmailSender>();
+}
+else
+{
+    Log.Information("Email: no SMTP host configured — email delivery disabled.");
+    builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
+}
 
 var dpKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/app/dp-keys";
 builder.Services.AddDataProtection()

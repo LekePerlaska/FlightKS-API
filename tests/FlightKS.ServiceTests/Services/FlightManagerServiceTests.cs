@@ -2,6 +2,7 @@ using FlightKS.Enums;
 using FlightKS.Exceptions;
 using FlightKS.Hubs;
 using FlightKS.Services;
+using FlightKS.Services.Interfaces;
 using FlightKS.ServiceTests.Fixtures;
 using Microsoft.AspNetCore.SignalR;
 using NSubstitute;
@@ -22,8 +23,16 @@ public class FlightManagerServiceTests(PostgresFixture fixture) : ServiceTestBas
         return (hub, proxy);
     }
 
+    private static INotificationService MakeNotifications()
+    {
+        var n = Substitute.For<INotificationService>();
+        n.CreateAsync(default, default!, default!, default!)
+         .ReturnsForAnyArgs(Task.FromResult(new FlightKS.Models.Entities.Notification { Title = "", Message = "", Type = "" }));
+        return n;
+    }
+
     private FlightManagerService MakeSut(FlightKS.Data.AppDbContext db, IHubContext<SeatHub>? hub = null) =>
-        new(db, hub ?? MakeHub().Hub);
+        new(db, hub ?? MakeHub().Hub, MakeNotifications());
 
     private async Task<(Guid ScheduleId, Guid SeatId, Guid TicketId)> SeedScenarioAsync()
     {
@@ -99,6 +108,27 @@ public class FlightManagerServiceTests(PostgresFixture fixture) : ServiceTestBas
             .Should().ThrowAsync<BusinessRuleException>();
     }
 
+    [Fact]
+    public async Task CheckInTicketAsync_IssuedTicket_SendsCheckInNotification()
+    {
+        var (_, _, ticketId) = await SeedScenarioAsync();
+
+        var notifications = Substitute.For<INotificationService>();
+        notifications.CreateAsync(default, default!, default!, default!)
+            .ReturnsForAnyArgs(Task.FromResult(new FlightKS.Models.Entities.Notification { Title = "", Message = "", Type = "" }));
+
+        await using var db = CreateContext();
+        await new FlightManagerService(db, MakeHub().Hub, notifications).CheckInTicketAsync(ticketId);
+
+        await notifications.Received(1).CreateAsync(
+            Arg.Any<Guid>(),
+            Arg.Is<string>(t => t == "Check-In Confirmed"),
+            Arg.Any<string>(),
+            Arg.Is<string>(t => t == "check_in_confirmed"),
+            Arg.Any<string?>(), Arg.Any<Guid?>(), Arg.Any<bool>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
+    }
+
     // ── SetSeatStatusAsync ──────────────────────────────────────────────────
 
     [Fact]
@@ -126,7 +156,7 @@ public class FlightManagerServiceTests(PostgresFixture fixture) : ServiceTestBas
 
         var (hub, proxy) = MakeHub();
         await using var db = CreateContext();
-        var result = await new FlightManagerService(db, hub)
+        var result = await new FlightManagerService(db, hub, MakeNotifications())
             .SetSeatStatusAsync(schedule.Id, seat.Id, FlightSeatStatus.Blocked);
 
         result!.Status.Should().Be(FlightSeatStatus.Blocked);
