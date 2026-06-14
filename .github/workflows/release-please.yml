@@ -1,8 +1,9 @@
 name: Release Please
 
+# Manual only: trigger from the Actions tab ("Run workflow") when you want to
+# cut a release. Not run on push, so it never adds a failing check to commits.
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,5 +21,7 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
+          # Cut releases against the branch you run it from (select it in the UI).
+          target-branch: ${{ github.ref_name }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
